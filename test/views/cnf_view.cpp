@@ -1,5 +1,3 @@
-#if (!_MSC_VER)
-
 #include <catch.hpp>
 
 #include <mockturtle/networks/klut.hpp>
@@ -183,5 +181,3 @@ TEST_CASE( "destructor", "[cnf_view]" )
   CHECK( mig.events().on_add.size() == 1 );
   CHECK( mig.events().on_delete.size() == 0 );
 }
-
-#endif
