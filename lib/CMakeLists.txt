@@ -30,6 +30,11 @@ if (NOT TARGET json)
   target_include_directories(json SYSTEM INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/json)
 endif()
 
+if (NOT TARGET quickcross)
+  add_library(quickcross INTERFACE) # v1.0
+  target_include_directories(quickcross SYSTEM INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/quickcross)
+endif ()
+
 if (NOT TARGET percy)
   add_library(percy INTERFACE) # >v0.1.2
   target_include_directories(percy SYSTEM INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/percy)

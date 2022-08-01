@@ -1,0 +1,12 @@
+Initial embedding scheme (e-)
+4 : an additional file is required as input and using the command -q.  The file should have a crossing order list given in the format provided in coxeter_crossings.txt. Then use the command:
+
+QC -e 4 -g coxeter_graph6.txt -q coxeter_crossings.txt
+
+Note the crossing number on the first line is not required, so it can be replaced by 'CR: 0' if desired. This format is the same as a given output from QC when using the -o 2 option.  Also you can provide an graph6 file with many graphs and a cr file with many graphs and it will solve and output all of them.  The algorithm will stop and display an error message if any graph and crossing list do not define a planarisation.
+
+5 : an additional file is required using the command -q.  The file should have x and y coordinates of all vertices, with vertex k on line k of the file, the x-coordinate, space, then the y-coordinate.  An example is in coxeter_coords.txt. Then use the command: 
+
+QC -e 5 -g coxeter_graph6.txt -q coxeter_coords.txt
+
+Note that this method draws straight lines for edges.  If coordinates are given which do not work, then you will need to find a different set of valid coordinates.  Many things can go wrong here.
