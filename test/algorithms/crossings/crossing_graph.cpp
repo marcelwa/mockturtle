@@ -38,7 +38,7 @@ TEMPLATE_TEST_CASE(
 {
   crossing_graph<TestType> const cg{ TestType{} };
 
-  CHECK( cg.get_num_vertices() == 0 );
+  CHECK( cg.get_num_vertices() == 1 );
   CHECK( cg.get_num_edges() == 0 );
 }
 
@@ -55,7 +55,7 @@ TEMPLATE_TEST_CASE(
 
   crossing_graph<TestType> const cg{ ntk };
 
-  CHECK( cg.get_num_vertices() == 3 );
+  CHECK( cg.get_num_vertices() == 4 );
   CHECK( cg.get_num_edges() == 2 );
 
   check_crossing_graph_edge_list( ntk, cg );

@@ -33,6 +33,8 @@
 
 #include "../../traits.hpp"
 
+#include <cstdlib>
+
 namespace mockturtle
 {
 
@@ -40,7 +42,7 @@ template<typename Ntk>
 class crossing_graph
 {
 public:
-  explicit crossing_graph( Ntk const& ntk ) noexcept : network{ ntk }, num_vertices{ static_cast<int>( ntk.num_gates() + ntk.num_pis() ) }
+  explicit crossing_graph( Ntk const& ntk ) noexcept : network{ ntk }, num_vertices{ static_cast<int>( ntk.num_gates() + ntk.num_pis() + 1 ) }
   {
     static_assert( is_network_type_v<Ntk>, "Ntk is not a network type" );
     static_assert( has_num_gates_v<Ntk>, "Ntk does not implement the num_gates function" );
