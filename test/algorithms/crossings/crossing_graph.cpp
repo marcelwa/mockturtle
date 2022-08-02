@@ -60,3 +60,50 @@ TEMPLATE_TEST_CASE(
 
   check_crossing_graph_edge_list( ntk, cg );
 }
+
+TEMPLATE_TEST_CASE(
+    "Maj crossing_graph construction", "[crossings]",
+    aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network )
+{
+  TestType ntk{};
+
+  auto const a = ntk.create_pi();
+  auto const b = ntk.create_pi();
+  auto const c = ntk.create_pi();
+  auto const d = ntk.create_pi();
+  auto const e = ntk.create_pi();
+
+  auto const f1 = ntk.create_maj( a, b, c );
+  auto const f2 = ntk.create_maj( d, e, f1 );
+  auto const f3 = ntk.create_maj( a, d, f1 );
+  auto const f4 = ntk.create_maj( f1, f2, f3 );
+  ntk.create_po( f4 );
+
+  crossing_graph<TestType> const cg{ ntk };
+
+  check_crossing_graph_edge_list( ntk, cg );
+}
+
+TEMPLATE_TEST_CASE(
+    "Maj crossing_graph construction with inverters and PO fan-outs", "[crossings]",
+    aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network )
+{
+  TestType ntk{};
+
+  auto const a = ntk.create_pi();
+  auto const b = ntk.create_pi();
+  auto const c = ntk.create_pi();
+  auto const d = ntk.create_pi();
+
+  auto const f1 = ntk.create_maj( a, b, c );
+  auto const f2 = ntk.create_maj( f1, c, d );
+  ntk.create_po( f1 );
+  ntk.create_po( !f1 );
+  ntk.create_po( f2 );
+  ntk.create_po( f2 );
+  ntk.create_po( !f2 );
+
+  crossing_graph<TestType> const cg{ ntk };
+
+  check_crossing_graph_edge_list( ntk, cg );
+}
