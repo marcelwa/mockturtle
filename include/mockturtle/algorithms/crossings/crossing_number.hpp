@@ -37,7 +37,11 @@
 
 #include <cstdint>
 #include <cstdlib>
+
+namespace quickcross
+{
 #include <quickcross/QC.c>
+} // namespace quickcross
 
 namespace mockturtle
 {
@@ -51,14 +55,14 @@ struct crossing_number_params
     EXHAUSTIVE = 3
   };
 
-  enum initial_embedding : int
+  enum embedding_scheme : int
   {
     KAMADA_KAWAI_SPRING_MODEL = 1,
     CIRCLE_EMBEDDING = 2,
     PLANAR_EMBEDDING = 3,
     // NOTE: the following are not supported yet
-    //    CROSSING_ORDER_LIST = 4,
-    //    COORDINATE_LIST = 5
+    CROSSING_ORDER_LIST = 4,
+    COORDINATE_LIST = 5
   };
   /**
    * The crossing minimization technique to use.
@@ -77,7 +81,7 @@ struct crossing_number_params
    * CIRCLE_EMBEDDING: Embedding onto a circle.
    * PLANAR_EMBEDDING: Iterative embedding upon a chordless cycle.
    */
-  initial_embedding embed_scheme{ PLANAR_EMBEDDING };
+  embedding_scheme initial_embedding{ PLANAR_EMBEDDING };
   /**
    * Specifies a seed for embedding randomization. If random_seed == 0, no randomization is performed.
    */
@@ -95,7 +99,7 @@ struct crossing_number_stats
   /*! \brief Number of crossings */
   uint32_t num_crossings{ 0 };
 
-  // TODO crossing order list embedding and coordinate list embedding
+  // TODO coordinate list embedding
 };
 
 namespace detail
@@ -109,40 +113,44 @@ public:
       : cr_graph{ cg },
         params{ ps },
         stats{ st },
-        finClab{ static_cast<int*>( calloc( cg.get_num_edges(), sizeof( int ) ) ) },
-        finCidx{ static_cast<int*>( calloc( cg.get_num_edges() + 1, sizeof( int ) ) ) }
+        qc_crossing_label{ static_cast<int*>( calloc( cg.get_num_edges(), sizeof( int ) ) ) },
+        qc_crossing_index{ static_cast<int*>( calloc( cg.get_num_edges() + 1, sizeof( int ) ) ) },
+        qc_x_coordinates{ ps.initial_embedding == crossing_number_params::embedding_scheme::COORDINATE_LIST ? static_cast<long double*>( calloc( cg.get_num_vertices(), sizeof( long double ) ) ) : nullptr },
+        qc_y_coordinates{ ps.initial_embedding == crossing_number_params::embedding_scheme::COORDINATE_LIST ? static_cast<long double*>( calloc( cg.get_num_vertices(), sizeof( long double ) ) ) : nullptr }
   {
   }
 
   ~crossing_number_impl()
   {
-    free( finClab );
-    free( finCidx );
+    free( qc_crossing_label );
+    free( qc_crossing_index );
+    free( qc_x_coordinates );
+    free( qc_y_coordinates );
   }
 
   void run() noexcept
   {
     stopwatch t{ stats.time_total };
 
-    quickcross::Biconnected_Runner( cr_graph.get_edge_list(),                 // graph representation
-                                    cr_graph.get_num_vertices(),              // number of vertices N
-                                    cr_graph.get_num_edges(),                 // number of edges M
-                                    static_cast<int>( params.min_scheme ),    // minimization scheme
-                                    static_cast<int>( params.embed_scheme ),  // initial graph embedding
-                                    static_cast<int>( params.bigface_depth ), // max search depth for BIGFACE minimization
-                                    static_cast<int>( params.random_seed ),   // random seed
-                                    static_cast<int>( params.verbose ),       // be verbose
-                                    0,                                        // output scheme, not being used in Biconnected_Runner
-                                    0,                                        // stop iteration if a "sufficient" crossing number is found, not to be used
-                                    nullptr,                                  // output file pointer, not being used in Biconnected_Runner
-                                    algorithm_output,                         // stores the final crossing number
-                                    &finClab,
-                                    finCidx,
-                                    x,
-                                    y );
+    quickcross::Biconnected_Runner( cr_graph.get_edge_list(),                     // graph representation
+                                    cr_graph.get_num_vertices(),                  // number of vertices N
+                                    cr_graph.get_num_edges(),                     // number of edges M
+                                    static_cast<int>( params.min_scheme ),        // minimization scheme
+                                    static_cast<int>( params.initial_embedding ), // initial graph embedding
+                                    static_cast<int>( params.bigface_depth ),     // max search depth for BIGFACE minimization
+                                    static_cast<int>( params.random_seed ),       // random seed
+                                    static_cast<int>( params.verbose ),           // be verbose
+                                    0,                                            // output scheme, not being used in Biconnected_Runner
+                                    0,                                            // stop iteration if a "sufficient" crossing number is found, not to be used
+                                    nullptr,                                      // output file pointer, not being used in Biconnected_Runner
+                                    qc_crossing_number,                           // stores the final crossing number
+                                    &qc_crossing_label,
+                                    qc_crossing_index,
+                                    qc_x_coordinates,
+                                    qc_y_coordinates );
 
     // extract the crossing number from the algorithm output
-    stats.num_crossings = static_cast<uint32_t>( algorithm_output[0] );
+    stats.num_crossings = static_cast<uint32_t>( qc_crossing_number[0] );
   }
 
 private:
@@ -159,15 +167,25 @@ private:
    */
   crossing_number_stats& stats;
   /**
-   * Host the final crossing number after the QuickCross run.
+   * Host the crossing number after the QuickCross run.
    */
-  int algorithm_output[1] = { -1 };
-
-  int* finClab; // will host something later, not sure yet what though
-  int* finCidx; // will host something later, not sure yet what though
-
-  long double* x{ nullptr };
-  long double* y{ nullptr };
+  int qc_crossing_number[1] = { -1 };
+  /**
+   * Hosts the crossing labels after the QuickCross run.
+   */
+  int* qc_crossing_label;
+  /**
+   * Hosts the crossing indices after the QuickCross run.
+   */
+  int* qc_crossing_index;
+  /**
+   * List of x-coordinates for each vertex. Only used for the COORDINATE_LIST embedding.
+   */
+  long double* qc_x_coordinates;
+  /**
+   * List of y-coordinates for each vertex. Only used for the COORDINATE_LIST embedding.
+   */
+  long double* qc_y_coordinates;
 };
 
 } // namespace detail

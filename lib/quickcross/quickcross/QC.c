@@ -101,8 +101,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-namespace quickcross
-{
 
 void dec_to_bin(int n, bool *b)
 {
@@ -12876,5 +12874,3 @@ void Create_Graph(int type, int p1, int p2, int p3, int **elist, int *outputs, i
 //   } 
 //   return 0;
 //}
-
-} // namespace quickcross
