@@ -40,7 +40,7 @@
 
 namespace quickcross
 {
-#include <quickcross/QC.c>
+#include <quickcross/QC.h>
 } // namespace quickcross
 
 namespace mockturtle
@@ -144,10 +144,11 @@ public:
                                     0,                                            // stop iteration if a "sufficient" crossing number is found, not to be used
                                     nullptr,                                      // output file pointer, not being used in Biconnected_Runner
                                     qc_crossing_number,                           // stores the final crossing number
-                                    &qc_crossing_label,
-                                    qc_crossing_index,
-                                    qc_x_coordinates,
-                                    qc_y_coordinates );
+                                    &qc_crossing_label,                           // stores the final crossing labels
+                                    qc_crossing_index,                            // stores the final crossing indices
+                                    qc_x_coordinates,                             // list of x-coordinates of all vertices, only used if initial_embedding == COORDINATE_LIST
+                                    qc_y_coordinates                              // list of y-coordinates of all vertices, only used if initial_embedding == COORDINATE_LIST
+    );
 
     // extract the crossing number from the algorithm output
     stats.num_crossings = static_cast<uint32_t>( qc_crossing_number[0] );
