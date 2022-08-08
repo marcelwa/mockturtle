@@ -936,6 +936,51 @@ template<class Ntk>
 inline constexpr bool has_update_levels_v = has_update_levels<Ntk>::value;
 #pragma endregion
 
+#pragma region has_rank_position
+template<class Ntk, class = void>
+struct has_rank_position : std::false_type
+{
+};
+
+template<class Ntk>
+struct has_rank_position<Ntk, std::void_t<decltype( std::declval<Ntk>().rank_position( std::declval<node<Ntk>>() ) )>> : std::true_type
+{
+};
+
+template<class Ntk>
+inline constexpr bool has_rank_position_v = has_rank_position<Ntk>::value;
+#pragma endregion
+
+#pragma region has_at_rank_position
+template<class Ntk, class = void>
+struct has_at_rank_position : std::false_type
+{
+};
+
+template<class Ntk>
+struct has_at_rank_position<Ntk, std::void_t<decltype( std::declval<Ntk>().at_rank_position( std::declval<uint32_t>(), std::declval<uint32_t>() ) )>> : std::true_type
+{
+};
+
+template<class Ntk>
+inline constexpr bool has_at_rank_position_v = has_at_rank_position<Ntk>::value;
+#pragma endregion
+
+#pragma region has_width
+template<class Ntk, class = void>
+struct has_width : std::false_type
+{
+};
+
+template<class Ntk>
+struct has_width<Ntk, std::void_t<decltype( std::declval<Ntk>().width() )>> : std::true_type
+{
+};
+
+template<class Ntk>
+inline constexpr bool has_width_v = has_width<Ntk>::value;
+#pragma endregion
+
 #pragma region has_update_mffcs
 template<class Ntk, class = void>
 struct has_update_mffcs : std::false_type
