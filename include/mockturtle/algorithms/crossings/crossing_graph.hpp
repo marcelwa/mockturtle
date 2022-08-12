@@ -42,10 +42,12 @@ template<typename Ntk>
 class crossing_graph
 {
 public:
-  explicit crossing_graph( Ntk const& ntk ) noexcept : network{ ntk }, num_vertices{ static_cast<int>( ntk.num_gates() + ntk.num_pis() + 1 ) }
+  explicit crossing_graph( Ntk const& ntk ) noexcept
+      : network{ ntk },
+        num_vertices{ static_cast<int>( ntk.size() ) }
   {
     static_assert( is_network_type_v<Ntk>, "Ntk is not a network type" );
-    static_assert( has_num_gates_v<Ntk>, "Ntk does not implement the num_gates function" );
+    static_assert( has_size_v<Ntk>, "Ntk does not implement the size function" );
     static_assert( has_foreach_node_v<Ntk>, "Ntk does not implement the foreach_node function" );
     static_assert( has_foreach_fanin_v<Ntk>, "Ntk does not implement the foreach_fanin function" );
     static_assert( has_node_to_index_v<Ntk>, "Ntk does not implement the node_to_index function" );
@@ -83,6 +85,15 @@ public:
   [[nodiscard]] int* get_edge_list() const noexcept
   {
     return edge_list;
+  }
+  /**
+   * Provides an accessor to the stored network.
+   *
+   * @return a const reference to the stored network.
+   */
+  [[nodiscard]] Ntk const& ntk() const noexcept
+  {
+    return network;
   }
 
 private:
@@ -142,5 +153,8 @@ private:
                     ++i; } );
   }
 };
+
+template<class T>
+crossing_graph( T const& ) -> crossing_graph<T>;
 
 } // namespace mockturtle
