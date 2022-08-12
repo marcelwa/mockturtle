@@ -39,9 +39,9 @@ TEMPLATE_TEST_CASE( "Traits", "[rank_view]", aig_network, mig_network, xag_netwo
 TEMPLATE_TEST_CASE( "Compute ranks for a simple network", "[rank_view]", aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network )
 {
   TestType ntk{};
-  const auto x1 = ntk.create_pi();
-  const auto x2 = ntk.create_pi();
-  const auto a1 = ntk.create_and( x1, x2 );
+  auto const x1 = ntk.create_pi();
+  auto const x2 = ntk.create_pi();
+  auto const a1 = ntk.create_and( x1, x2 );
   ntk.create_po( a1 );
 
   depth_view depth_ntk{ ntk };
@@ -52,17 +52,17 @@ TEMPLATE_TEST_CASE( "Compute ranks for a simple network", "[rank_view]", aig_net
 
   CHECK( rank_ntk.width() == 2u );
 
-  const auto x1_lvl = rank_ntk.level( rank_ntk.get_node( x1 ) );
-  const auto x2_lvl = rank_ntk.level( rank_ntk.get_node( x2 ) );
-  const auto a1_lvl = rank_ntk.level( rank_ntk.get_node( a1 ) );
+  auto const x1_lvl = rank_ntk.level( rank_ntk.get_node( x1 ) );
+  auto const x2_lvl = rank_ntk.level( rank_ntk.get_node( x2 ) );
+  auto const a1_lvl = rank_ntk.level( rank_ntk.get_node( a1 ) );
 
   CHECK( x1_lvl == 0u );
   CHECK( x2_lvl == 0u );
   CHECK( a1_lvl == 1u );
 
-  const auto x1_pos = rank_ntk.rank_position( rank_ntk.get_node( x1 ) );
-  const auto x2_pos = rank_ntk.rank_position( rank_ntk.get_node( x2 ) );
-  const auto a1_pos = rank_ntk.rank_position( rank_ntk.get_node( a1 ) );
+  auto const x1_pos = rank_ntk.rank_position( rank_ntk.get_node( x1 ) );
+  auto const x2_pos = rank_ntk.rank_position( rank_ntk.get_node( x2 ) );
+  auto const a1_pos = rank_ntk.rank_position( rank_ntk.get_node( a1 ) );
 
   CHECK( ( x1_pos == 0u || x1_pos == 1u ) );
   CHECK( ( x2_pos == 0u || x2_pos == 1u ) );
@@ -83,20 +83,20 @@ TEMPLATE_TEST_CASE( "compute ranks during node construction", "[rank_view]", aig
   depth_view depth_ntk{ TestType{} };
   rank_view rank_ntk{ depth_ntk };
 
-  const auto a = rank_ntk.create_pi();
-  const auto b = rank_ntk.create_pi();
-  const auto c = rank_ntk.create_pi();
+  auto const a = rank_ntk.create_pi();
+  auto const b = rank_ntk.create_pi();
+  auto const c = rank_ntk.create_pi();
 
-  const auto a1 = rank_ntk.create_and( a, b );
-  const auto a2 = rank_ntk.create_and( a1, c );
+  auto const a1 = rank_ntk.create_and( a, b );
+  auto const a2 = rank_ntk.create_and( a1, c );
   rank_ntk.create_po( a2 );
 
   CHECK( rank_ntk.width() == 3u );
 
-  const auto a3 = rank_ntk.create_and( b, c );
-  const auto a4 = rank_ntk.create_and( a, c );
-  const auto o1 = rank_ntk.create_or( a, b );
-  const auto o2 = rank_ntk.create_or( a3, a4 );
+  auto const a3 = rank_ntk.create_and( b, c );
+  auto const a4 = rank_ntk.create_and( a, c );
+  auto const o1 = rank_ntk.create_or( a, b );
+  auto const o2 = rank_ntk.create_or( a3, a4 );
   rank_ntk.create_po( o1 );
   rank_ntk.create_po( o2 );
 
@@ -116,9 +116,9 @@ TEMPLATE_TEST_CASE( "compute ranks during node construction after copy ctor", "[
     tmp.reset(); // don't access tmp anymore after this line!
     CHECK( rank_ntk.events().on_add.size() == 4u );
 
-    const auto a = cpy_rank.create_pi();
-    const auto b = cpy_rank.create_pi();
-    const auto c = cpy_rank.create_pi();
+    auto const a = cpy_rank.create_pi();
+    auto const b = cpy_rank.create_pi();
+    auto const c = cpy_rank.create_pi();
     auto const t0 = cpy_rank.create_or( a, b );
     auto const t1 = cpy_rank.create_or( b, c );
     auto const t2 = cpy_rank.create_and( t0, t1 );
@@ -126,9 +126,9 @@ TEMPLATE_TEST_CASE( "compute ranks during node construction after copy ctor", "[
     cpy_rank.create_po( t3 );
     CHECK( cpy_rank.width() == 3u );
 
-    const auto t4 = cpy_rank.create_and( a, c );
-    const auto t5 = cpy_rank.create_or( a, c );
-    const auto t6 = cpy_rank.create_and( t4, t5 );
+    auto const t4 = cpy_rank.create_and( a, c );
+    auto const t5 = cpy_rank.create_or( a, c );
+    auto const t6 = cpy_rank.create_and( t4, t5 );
     cpy_rank.create_po( t6 );
     CHECK( cpy_rank.width() == 4u );
 
