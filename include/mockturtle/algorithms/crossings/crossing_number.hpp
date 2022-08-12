@@ -37,6 +37,7 @@
 
 #include <cstdint>
 #include <cstdlib>
+#include <limits>
 
 namespace quickcross
 {
@@ -50,18 +51,13 @@ struct crossing_number_params
 {
   enum minimization_scheme : int
   {
-    BIGFACE = 1,
     INCREMENTAL = 2,
     EXHAUSTIVE = 3
   };
 
   enum embedding_scheme : int
   {
-    KAMADA_KAWAI_SPRING_MODEL = 1,
-    CIRCLE_EMBEDDING = 2,
     PLANAR_EMBEDDING = 3,
-    // NOTE: the following are not supported yet
-    CROSSING_ORDER_LIST = 4,
     COORDINATE_LIST = 5
   };
   /**
@@ -72,16 +68,15 @@ struct crossing_number_params
    */
   minimization_scheme min_scheme{ INCREMENTAL };
   /**
-   * If min_scheme == BIGFACE, this parameter determines the maximum search depth.
-   */
-  uint16_t bigface_depth{ 0 };
-  /**
    * The initial graph embedding to start with.
-   * KAMADA_KAWAI_SPRING_MODEL: The Kamada-Kawai spring embedding.
-   * CIRCLE_EMBEDDING: Embedding onto a circle.
    * PLANAR_EMBEDDING: Iterative embedding upon a chordless cycle.
+   * COORDINATE_LIST: Straight-line embedding given a coordinate list (extracted from rank_view).
    */
   embedding_scheme initial_embedding{ PLANAR_EMBEDDING };
+  /**
+   * Execute a single run or perform optimization.
+   */
+  bool single_run{ true };
   /**
    * Specifies a seed for embedding randomization. If random_seed == 0, no randomization is performed.
    */
@@ -98,8 +93,6 @@ struct crossing_number_stats
   stopwatch<>::duration time_total{ 0 };
   /*! \brief Number of crossings */
   uint32_t num_crossings{ 0 };
-
-  // TODO coordinate list embedding
 };
 
 namespace detail
@@ -115,9 +108,34 @@ public:
         stats{ st },
         qc_crossing_label{ static_cast<int*>( calloc( cg.get_num_edges(), sizeof( int ) ) ) },
         qc_crossing_index{ static_cast<int*>( calloc( cg.get_num_edges() + 1, sizeof( int ) ) ) },
-        qc_x_coordinates{ ps.initial_embedding == crossing_number_params::embedding_scheme::COORDINATE_LIST ? static_cast<long double*>( calloc( cg.get_num_vertices(), sizeof( long double ) ) ) : nullptr },
-        qc_y_coordinates{ ps.initial_embedding == crossing_number_params::embedding_scheme::COORDINATE_LIST ? static_cast<long double*>( calloc( cg.get_num_vertices(), sizeof( long double ) ) ) : nullptr }
+        qc_x_coordinates{ ( ps.initial_embedding == crossing_number_params::embedding_scheme::COORDINATE_LIST && has_level_v<Ntk> && has_rank_position_v<Ntk> ) ? static_cast<long double*>( calloc( cg.get_num_vertices(), sizeof( long double ) ) ) : nullptr },
+        qc_y_coordinates{ ( ps.initial_embedding == crossing_number_params::embedding_scheme::COORDINATE_LIST && has_level_v<Ntk> && has_rank_position_v<Ntk> ) ? static_cast<long double*>( calloc( cg.get_num_vertices(), sizeof( long double ) ) ) : nullptr }
   {
+    if constexpr ( has_level_v<Ntk> && has_rank_position_v<Ntk> )
+    {
+      if ( ps.initial_embedding == crossing_number_params::embedding_scheme::COORDINATE_LIST )
+      {
+        cr_graph.ntk().foreach_node( [this]( auto const& n )
+                                     {
+                                        auto const idx = cr_graph.ntk().node_to_index( n );
+
+                                        if ( n == cr_graph.ntk().get_node( cr_graph.ntk().get_constant( false ) ) )
+                                        {
+                                          qc_x_coordinates[idx] = static_cast<long double>( cr_graph.ntk().depth() + 2 );
+                                          qc_y_coordinates[idx] = static_cast<long double>( cr_graph.ntk().width() + 2 );
+                                        }
+                                        else if ( n == cr_graph.ntk().get_node( cr_graph.ntk().get_constant( true ) ) )
+                                        {
+                                          qc_x_coordinates[idx] = static_cast<long double>( cr_graph.ntk().depth() + 3 );
+                                          qc_y_coordinates[idx] = static_cast<long double>( cr_graph.ntk().width() + 3 );
+                                        }
+                                        else
+                                        {
+                                          qc_x_coordinates[idx] = static_cast<long double>( cr_graph.ntk().rank_position( n ) + 1 );
+                                          qc_y_coordinates[idx] = static_cast<long double>( cr_graph.ntk().level( n ) + 1);
+                                        } } );
+      }
+    }
   }
 
   ~crossing_number_impl()
@@ -132,22 +150,22 @@ public:
   {
     stopwatch t{ stats.time_total };
 
-    quickcross::Biconnected_Runner( cr_graph.get_edge_list(),                     // graph representation
-                                    cr_graph.get_num_vertices(),                  // number of vertices N
-                                    cr_graph.get_num_edges(),                     // number of edges M
-                                    static_cast<int>( params.min_scheme ),        // minimization scheme
-                                    static_cast<int>( params.initial_embedding ), // initial graph embedding
-                                    static_cast<int>( params.bigface_depth ),     // max search depth for BIGFACE minimization
-                                    static_cast<int>( params.random_seed ),       // random seed
-                                    static_cast<int>( params.verbose ),           // be verbose
-                                    0,                                            // output scheme, not being used in Biconnected_Runner
-                                    0,                                            // stop iteration if a "sufficient" crossing number is found, not to be used
-                                    nullptr,                                      // output file pointer, not being used in Biconnected_Runner
-                                    qc_crossing_number,                           // stores the final crossing number
-                                    &qc_crossing_label,                           // stores the final crossing labels
-                                    qc_crossing_index,                            // stores the final crossing indices
-                                    qc_x_coordinates,                             // list of x-coordinates of all vertices, only used if initial_embedding == COORDINATE_LIST
-                                    qc_y_coordinates                              // list of y-coordinates of all vertices, only used if initial_embedding == COORDINATE_LIST
+    quickcross::Biconnected_Runner( cr_graph.get_edge_list(),                                // graph representation
+                                    cr_graph.get_num_vertices(),                             // number of vertices N
+                                    cr_graph.get_num_edges(),                                // number of edges M
+                                    static_cast<int>( params.min_scheme ),                   // minimization scheme
+                                    static_cast<int>( params.initial_embedding ),            // initial graph embedding
+                                    0,                                                       // max search depth for BIGFACE minimization, not being used by us
+                                    static_cast<int>( params.random_seed ),                  // random seed
+                                    static_cast<int>( params.verbose ),                      // be verbose
+                                    0,                                                       // output scheme, not being used in Biconnected_Runner
+                                    params.single_run ? std::numeric_limits<int>::max() : 0, // stop iteration if a "sufficient" crossing number is found
+                                    nullptr,                                                 // output file pointer, not being used in Biconnected_Runner
+                                    qc_crossing_number,                                      // stores the final crossing number
+                                    &qc_crossing_label,                                      // stores the final crossing labels
+                                    qc_crossing_index,                                       // stores the final crossing indices
+                                    qc_x_coordinates,                                        // list of x-coordinates of all vertices, only used if initial_embedding == COORDINATE_LIST
+                                    qc_y_coordinates                                         // list of y-coordinates of all vertices, only used if initial_embedding == COORDINATE_LIST
     );
 
     // extract the crossing number from the algorithm output
