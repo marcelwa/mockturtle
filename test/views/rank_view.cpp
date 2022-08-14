@@ -20,6 +20,7 @@ TEMPLATE_TEST_CASE( "Traits", "[rank_view]", aig_network, mig_network, xag_netwo
   CHECK( !has_rank_position_v<TestType> );
   CHECK( !has_at_rank_position_v<TestType> );
   CHECK( !has_width_v<TestType> );
+  CHECK( !has_foreach_node_in_rank_v<TestType> );
 
   using rank_ntk = rank_view<depth_view<TestType>>;
 
@@ -27,6 +28,7 @@ TEMPLATE_TEST_CASE( "Traits", "[rank_view]", aig_network, mig_network, xag_netwo
   CHECK( has_rank_position_v<rank_ntk> );
   CHECK( has_at_rank_position_v<rank_ntk> );
   CHECK( has_width_v<rank_ntk> );
+  CHECK( has_foreach_node_in_rank_v<rank_ntk> );
 
   using rank_rank_ntk = rank_view<rank_ntk>;
 
@@ -34,6 +36,7 @@ TEMPLATE_TEST_CASE( "Traits", "[rank_view]", aig_network, mig_network, xag_netwo
   CHECK( has_rank_position_v<rank_rank_ntk> );
   CHECK( has_at_rank_position_v<rank_rank_ntk> );
   CHECK( has_width_v<rank_rank_ntk> );
+  CHECK( has_foreach_node_in_rank_v<rank_rank_ntk> );
 }
 
 TEMPLATE_TEST_CASE( "Compute ranks for a simple network", "[rank_view]", aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network )
@@ -72,10 +75,53 @@ TEMPLATE_TEST_CASE( "Compute ranks for a simple network", "[rank_view]", aig_net
   CHECK( rank_ntk.at_rank_position( x2_lvl, x2_pos ) == rank_ntk.get_node( x2 ) );
   CHECK( rank_ntk.at_rank_position( a1_lvl, a1_pos ) == rank_ntk.get_node( a1 ) );
 
+  rank_ntk.foreach_node_in_rank( 0ul, [&]( auto const& n, auto i )
+                                 {
+                                  switch (i)
+                                  {
+                                    case( 0ul ):
+                                    {
+                                        CHECK( n == rank_ntk.get_node( x1 ) );
+                                        break;
+                                    }
+                                    case( 1ul ):
+                                    {
+                                        CHECK( n == rank_ntk.get_node( x2 ) );
+                                        break;
+                                    }
+                                    default:
+                                    {
+                                      CHECK( false );
+                                    }
+                                   } } );
+
+  rank_ntk.foreach_node_in_rank( 1ul, [&]( auto const& n )
+                                 { CHECK( n == rank_ntk.get_node( a1 ) ); } );
+
   rank_ntk.swap( rank_ntk.get_node( x1 ), rank_ntk.get_node( x2 ) );
 
   CHECK( rank_ntk.at_rank_position( x1_lvl, x1_pos ) == rank_ntk.get_node( x2 ) );
   CHECK( rank_ntk.at_rank_position( x2_lvl, x2_pos ) == rank_ntk.get_node( x1 ) );
+
+  rank_ntk.foreach_node_in_rank( 0ul, [&]( auto const& n, auto i )
+                                 {
+                                   switch (i)
+                                   {
+                                   case( 0ul ):
+                                   {
+                                     CHECK( n == rank_ntk.get_node( x2 ) );
+                                     break;
+                                   }
+                                   case( 1ul ):
+                                   {
+                                     CHECK( n == rank_ntk.get_node( x1 ) );
+                                     break;
+                                   }
+                                   default:
+                                   {
+                                     CHECK( false );
+                                   }
+                                   } } );
 }
 
 TEMPLATE_TEST_CASE( "compute ranks during node construction", "[rank_view]", aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network )
@@ -92,6 +138,51 @@ TEMPLATE_TEST_CASE( "compute ranks during node construction", "[rank_view]", aig
   rank_ntk.create_po( a2 );
 
   CHECK( rank_ntk.width() == 3u );
+
+  rank_ntk.foreach_node_in_rank( 0ul, [&]( auto const& n, auto i )
+                                 {
+                                   switch (i)
+                                   {
+                                   case( 0ul ):
+                                   {
+                                     CHECK( n == rank_ntk.get_node( a ) );
+                                     break;
+                                   }
+                                   case( 1ul ):
+                                   {
+                                     CHECK( n == rank_ntk.get_node( b ) );
+                                     break;
+                                   }
+                                   case ( 2ul ):
+                                   {
+                                     CHECK( n == rank_ntk.get_node( c ) );
+                                     break;
+                                   }
+                                   default:
+                                   {
+                                     CHECK( false );
+                                   }
+                                   } } );
+
+  rank_ntk.foreach_node_in_rank( 1ul, [&]( auto const& n, auto i )
+                                 {
+                                   switch (i)
+                                   {
+                                   case( 0ul ):
+                                   {
+                                     CHECK( n == rank_ntk.get_node( a1 ) );
+                                     break;
+                                   }
+                                   case( 1ul ):
+                                   {
+                                     CHECK( n == rank_ntk.get_node( a2 ) );
+                                     break;
+                                   }
+                                   default:
+                                   {
+                                     CHECK( false );
+                                   }
+                                   } } );
 
   auto const a3 = rank_ntk.create_and( b, c );
   auto const a4 = rank_ntk.create_and( a, c );

@@ -32,6 +32,7 @@
 
 #pragma once
 
+#include "../networks/detail/foreach.hpp"
 #include "../traits.hpp"
 #include "../utils/node_map.hpp"
 
@@ -196,6 +197,19 @@ public:
 
     std::swap( ranks[this->level( n1 )][pos1], ranks[this->level( n2 )][pos2] );
     std::swap( pos1, pos2 );
+  }
+  /**
+   * \brief Applies a given function to each node in the rank level in order.
+   *
+   * @tparam Fn Functor type.
+   * @param level The rank to apply fn to.
+   * @param fn The function to apply.
+   */
+  template<typename Fn>
+  void foreach_node_in_rank( uint32_t const level, Fn&& fn ) const
+  {
+    assert( level < ranks.size() && "level must be less than the number of ranks" );
+    detail::foreach_element( ranks[level].cbegin(), ranks[level].cend(), fn );
   }
   /**
    * Overrides the base class method to also call the add_event on create_pi().

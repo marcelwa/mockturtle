@@ -981,6 +981,21 @@ template<class Ntk>
 inline constexpr bool has_width_v = has_width<Ntk>::value;
 #pragma endregion
 
+#pragma region has_foreach_node_in_rank
+template<class Ntk, class = void>
+struct has_foreach_node_in_rank : std::false_type
+{
+};
+
+template<class Ntk>
+struct has_foreach_node_in_rank<Ntk, std::void_t<decltype( std::declval<Ntk>().foreach_node_in_rank( std::declval<uint32_t>(), std::declval<void( node<Ntk>, uint32_t )>() ) )>> : std::true_type
+{
+};
+
+template<class Ntk>
+inline constexpr bool has_foreach_node_in_rank_v = has_foreach_node_in_rank<Ntk>::value;
+#pragma endregion
+
 #pragma region has_update_mffcs
 template<class Ntk, class = void>
 struct has_update_mffcs : std::false_type
@@ -1685,7 +1700,6 @@ struct has_compute<Ntk, T, std::void_t<decltype( std::declval<Ntk>().compute( st
 template<class Ntk, typename T>
 inline constexpr bool has_compute_v = has_compute<Ntk, T>::value;
 #pragma endregion
-
 
 #pragma region has_compute_inplace
 template<class Ntk, typename T, class = void>
