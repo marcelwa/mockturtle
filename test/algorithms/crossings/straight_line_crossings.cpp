@@ -26,89 +26,72 @@ TEMPLATE_TEST_CASE(
 
   CHECK( st.num_crossings == 0 );
 }
-//
-// TEMPLATE_TEST_CASE(
-//    "Simple network crossing number", "[crossings]",
-//    aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network )
-//{
-//  TestType ntk{};
-//
-//  auto const x1 = ntk.create_pi();
-//  auto const x2 = ntk.create_pi();
-//  auto const a1 = ntk.create_and( x1, x2 );
-//  ntk.create_po( a1 );
-//
-//  rank_view<TestType> const cg{ ntk };
-//
-//  straight_line_crossings_stats st{};
-//
-//  straight_line_crossings<TestType>( cg, {}, &st );
-//
-//  CHECK( st.num_crossings == 0 );
-//}
-//
-// TEMPLATE_TEST_CASE(
-//    "Maj network crossing number", "[crossings]",
-//    aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network )
-//{
-//  TestType ntk{};
-//
-//  auto const a = ntk.create_pi();
-//  auto const b = ntk.create_pi();
-//  auto const c = ntk.create_pi();
-//  auto const d = ntk.create_pi();
-//  auto const e = ntk.create_pi();
-//
-//  auto const f1 = ntk.create_maj( a, b, c );
-//  auto const f2 = ntk.create_maj( d, e, f1 );
-//  auto const f3 = ntk.create_maj( a, d, f1 );
-//  auto const f4 = ntk.create_maj( f1, f2, f3 );
-//  ntk.create_po( f4 );
-//
-//  rank_view<TestType> const cg{ ntk };
-//
-//  straight_line_crossings_stats st{};
-//
-//  straight_line_crossings<TestType>( cg, {}, &st );
-//
-//  if constexpr ( std::is_same_v<TestType, aig_network> )
-//  {
-//    CHECK( st.num_crossings == 2 );
-//  }
-//  else if constexpr ( std::is_same_v<TestType, xag_network> )
-//  {
-//    CHECK( st.num_crossings == 1 );
-//  }
-//  else
-//  {
-//    CHECK( st.num_crossings == 0 );
-//  }
-//}
-//
-// TEMPLATE_TEST_CASE(
-//    "Maj network crossing number with inverters and PO fan-outs", "[crossings]",
-//    aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network )
-//{
-//  TestType ntk{};
-//
-//  auto const a = ntk.create_pi();
-//  auto const b = ntk.create_pi();
-//  auto const c = ntk.create_pi();
-//  auto const d = ntk.create_pi();
-//
-//  auto const f1 = ntk.create_maj( a, b, c );
-//  auto const f2 = ntk.create_maj( f1, c, d );
-//  ntk.create_po( f1 );
-//  ntk.create_po( !f1 );
-//  ntk.create_po( f2 );
-//  ntk.create_po( f2 );
-//  ntk.create_po( !f2 );
-//
-//  rank_view<TestType> const cg{ ntk };
-//
-//  straight_line_crossings_stats st{};
-//
-//  straight_line_crossings<TestType>( cg, {}, &st );
-//
-//  CHECK( st.num_crossings == 0 );
-//}
+
+TEMPLATE_TEST_CASE(
+    "Simple network straight-line crossing number", "[crossings]",
+    aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network )
+{
+  TestType ntk{};
+
+  auto const x1 = ntk.create_pi();
+  auto const x2 = ntk.create_pi();
+  auto const a1 = ntk.create_and( x1, x2 );
+  ntk.create_po( a1 );
+
+  rank_view<depth_view<TestType>> rank_ntk{ depth_view<TestType>{ ntk } };
+
+  straight_line_crossings_stats st{};
+
+  straight_line_crossings( rank_ntk, {}, &st );
+
+  CHECK( st.num_crossings == 0 );
+
+  // there should be no crossings in the network no matter the order of the inputs
+  rank_ntk.swap( rank_ntk.get_node( x1 ), rank_ntk.get_node( x2 ) );
+
+  CHECK( st.num_crossings == 0 );
+}
+
+TEMPLATE_TEST_CASE(
+    "Three layer lattice straight-line crossing number", "[crossings]",
+    aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network )
+{
+  rank_view<depth_view<TestType>> rank_ntk{};
+
+  // rank 1
+  auto const x1 = rank_ntk.create_pi();
+  auto const x2 = rank_ntk.create_pi();
+  auto const x3 = rank_ntk.create_pi();
+
+  // rank 2
+  auto const x4 = rank_ntk.create_and( x1, x2 );
+  auto const x5 = rank_ntk.create_and( x1, x3 );
+  auto const x6 = rank_ntk.create_and( x2, x3 );
+
+  // rank 3
+  auto const x7 = rank_ntk.create_and( x4, x5 );
+  auto const x8 = rank_ntk.create_and( x4, x6 );
+  auto const x9 = rank_ntk.create_and( x5, x6 );
+
+  // outputs
+  rank_ntk.create_po( x7 );
+  rank_ntk.create_po( x8 );
+  rank_ntk.create_po( x9 );
+
+  // validate rank positions
+  REQUIRE( rank_ntk.rank_position( rank_ntk.get_node( x1 ) ) == 0 );
+  REQUIRE( rank_ntk.rank_position( rank_ntk.get_node( x2 ) ) == 1 );
+  REQUIRE( rank_ntk.rank_position( rank_ntk.get_node( x3 ) ) == 2 );
+  REQUIRE( rank_ntk.rank_position( rank_ntk.get_node( x4 ) ) == 0 );
+  REQUIRE( rank_ntk.rank_position( rank_ntk.get_node( x5 ) ) == 1 );
+  REQUIRE( rank_ntk.rank_position( rank_ntk.get_node( x6 ) ) == 2 );
+  REQUIRE( rank_ntk.rank_position( rank_ntk.get_node( x7 ) ) == 0 );
+  REQUIRE( rank_ntk.rank_position( rank_ntk.get_node( x8 ) ) == 1 );
+  REQUIRE( rank_ntk.rank_position( rank_ntk.get_node( x9 ) ) == 2 );
+
+  straight_line_crossings_stats st{};
+
+  straight_line_crossings( rank_ntk, {}, &st );
+
+  CHECK( st.num_crossings == 4 );
+}

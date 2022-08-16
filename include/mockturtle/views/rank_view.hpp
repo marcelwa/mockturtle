@@ -81,7 +81,7 @@ namespace mockturtle
       std::cout << "Width: " << aig_rank.width() << "\n";
    \endverbatim
  */
-template<class Ntk, bool has_rank_interface = has_rank_position_v<Ntk>&& has_at_rank_position_v<Ntk>&& has_width_v<Ntk>>
+template<class Ntk, bool has_rank_interface = has_rank_position_v<Ntk>&& has_at_rank_position_v<Ntk>&& has_width_v<Ntk>&& has_foreach_node_in_rank_v<Ntk>>
 class rank_view
 {
 };
