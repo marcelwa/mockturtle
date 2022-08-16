@@ -146,7 +146,8 @@ private:
     double const s = ( -s1_y * ( p_src1.x - p_src2.x ) + s1_x * ( p_src1.y - p_src2.y ) ) / ( -s2_x * s1_y + s1_x * s2_y );
     double const t = ( s2_x * ( p_src1.y - p_src2.y ) - s2_y * ( p_src1.x - p_src2.x ) ) / ( -s2_x * s1_y + s1_x * s2_y );
 
-    return ( s >= 0 && s <= 1 && t >= 0 && t <= 1 );
+    // do not use >= / <= here to not consider lines that share the same endpoints as a crossing
+    return ( s > 0 && s < 1 && t > 0 && t < 1 );
   }
 };
 
