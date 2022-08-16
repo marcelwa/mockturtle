@@ -71,11 +71,6 @@ public:
     foreach_edge( ntk, [this]( auto const& src1, const auto& tgt1 )
                   { foreach_edge( ntk, [this, &src1, &tgt1]( auto const& src2, const auto& tgt2 )
                                   {
-                                    // if any two points are identical, the lines cannot cross
-                                    if ( src1 == src2 || src1 == tgt1 || src1 == tgt2 || tgt1 == src2 || tgt1 == tgt2 || src2 == tgt2 )
-                                    {
-                                      return;
-                                    }
                                     if ( is_straight_line_crossing( src1, tgt1, src2, tgt2 ) )
                                     {
                                       ++stats.num_crossings;
