@@ -981,6 +981,21 @@ template<class Ntk>
 inline constexpr bool has_width_v = has_width<Ntk>::value;
 #pragma endregion
 
+#pragma region has_sort_rank
+template<class Ntk, class = void>
+struct has_sort_rank : std::false_type
+{
+};
+
+template<class Ntk>
+struct has_sort_rank<Ntk, std::void_t<decltype( std::declval<Ntk>().sort_rank( std::declval<uint32_t>(), std::declval<void( node<Ntk>, node<Ntk> )>() ) )>> : std::true_type
+{
+};
+
+template<class Ntk>
+inline constexpr bool has_sort_rank_v = has_sort_rank<Ntk>::value;
+#pragma endregion
+
 #pragma region has_foreach_node_in_rank
 template<class Ntk, class = void>
 struct has_foreach_node_in_rank : std::false_type

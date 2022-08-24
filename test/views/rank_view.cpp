@@ -10,16 +10,18 @@
 #include <mockturtle/views/depth_view.hpp>
 #include <mockturtle/views/rank_view.hpp>
 
+#include <functional>
 #include <memory>
 
 using namespace mockturtle;
 
-TEMPLATE_TEST_CASE( "Traits", "[rank_view]", aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network )
+TEMPLATE_TEST_CASE( "traits", "[rank_view]", aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network )
 {
   CHECK( is_network_type_v<TestType> );
   CHECK( !has_rank_position_v<TestType> );
   CHECK( !has_at_rank_position_v<TestType> );
   CHECK( !has_width_v<TestType> );
+  CHECK( !has_sort_rank_v<TestType> );
   CHECK( !has_foreach_node_in_rank_v<TestType> );
 
   using rank_ntk = rank_view<depth_view<TestType>>;
@@ -28,6 +30,7 @@ TEMPLATE_TEST_CASE( "Traits", "[rank_view]", aig_network, mig_network, xag_netwo
   CHECK( has_rank_position_v<rank_ntk> );
   CHECK( has_at_rank_position_v<rank_ntk> );
   CHECK( has_width_v<rank_ntk> );
+  CHECK( has_sort_rank_v<rank_ntk> );
   CHECK( has_foreach_node_in_rank_v<rank_ntk> );
 
   using rank_rank_ntk = rank_view<rank_ntk>;
@@ -36,10 +39,11 @@ TEMPLATE_TEST_CASE( "Traits", "[rank_view]", aig_network, mig_network, xag_netwo
   CHECK( has_rank_position_v<rank_rank_ntk> );
   CHECK( has_at_rank_position_v<rank_rank_ntk> );
   CHECK( has_width_v<rank_rank_ntk> );
+  CHECK( has_sort_rank_v<rank_rank_ntk> );
   CHECK( has_foreach_node_in_rank_v<rank_rank_ntk> );
 }
 
-TEMPLATE_TEST_CASE( "Compute ranks for a simple network", "[rank_view]", aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network )
+TEMPLATE_TEST_CASE( "compute ranks for a simple network", "[rank_view]", aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network )
 {
   TestType ntk{};
   auto const x1 = ntk.create_pi();
@@ -231,18 +235,68 @@ TEMPLATE_TEST_CASE( "compute ranks during node construction after copy ctor", "[
 
 TEMPLATE_TEST_CASE( "compute ranks during node construction after copy assignment", "[rank_view]", aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network )
 {
-  depth_view<TestType> xag{};
-  rank_view dxag{ xag };
+  depth_view<TestType> depth_ntk{};
+  rank_view rank_ntk{ depth_ntk };
   {
-    auto tmp = std::make_unique<rank_view<depth_view<TestType>>>( xag );
-    dxag = *tmp; // copy assignment
+    auto tmp = std::make_unique<rank_view<depth_view<TestType>>>( depth_ntk );
+    rank_ntk = *tmp; // copy assignment
     tmp.reset();
   }
 
-  auto const a = dxag.create_pi();
-  auto const b = dxag.create_pi();
-  auto const c = dxag.create_pi();
-  dxag.create_po( dxag.create_or( b, dxag.create_and( dxag.create_or( a, b ), dxag.create_or( b, c ) ) ) );
+  auto const a = rank_ntk.create_pi();
+  auto const b = rank_ntk.create_pi();
+  auto const c = rank_ntk.create_pi();
+  rank_ntk.create_po( rank_ntk.create_or( b, rank_ntk.create_and( rank_ntk.create_or( a, b ), rank_ntk.create_or( b, c ) ) ) );
 
-  CHECK( dxag.width() == 3u );
+  CHECK( rank_ntk.width() == 3u );
+}
+
+TEMPLATE_TEST_CASE( "sort ranks according to a comparator", "[rank_view]", aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network )
+{
+  using Ntk = rank_view<depth_view<TestType>>;
+
+  rank_view rank_ntk{ depth_view{ TestType{} } };
+
+  auto const a = rank_ntk.create_pi();
+  auto const b = rank_ntk.create_pi();
+
+  auto const a1 = rank_ntk.create_and( a, b );
+
+  auto const c = rank_ntk.create_pi();
+
+  auto const a2 = rank_ntk.create_and( a1, c );
+
+  rank_ntk.create_po( a2 );
+
+  // verify order before sorting
+  REQUIRE( rank_ntk.rank_position( rank_ntk.get_node( a ) ) == 0u );
+  REQUIRE( rank_ntk.rank_position( rank_ntk.get_node( b ) ) == 1u );
+  REQUIRE( rank_ntk.rank_position( rank_ntk.get_node( c ) ) == 2u );
+
+  REQUIRE( rank_ntk.at_rank_position( 0u, 0u ) == rank_ntk.get_node( a ) );
+  REQUIRE( rank_ntk.at_rank_position( 0u, 1u ) == rank_ntk.get_node( b ) );
+  REQUIRE( rank_ntk.at_rank_position( 0u, 2u ) == rank_ntk.get_node( c ) );
+
+  // sort rank 0 in descending order
+  rank_ntk.sort_rank( 0u, std::greater<node<Ntk>>{} );
+
+  // check order after sorting
+  CHECK( rank_ntk.rank_position( rank_ntk.get_node( a ) ) == 2u );
+  CHECK( rank_ntk.rank_position( rank_ntk.get_node( b ) ) == 1u );
+  CHECK( rank_ntk.rank_position( rank_ntk.get_node( c ) ) == 0u );
+
+  CHECK( rank_ntk.at_rank_position( 0u, 2u ) == rank_ntk.get_node( a ) );
+  CHECK( rank_ntk.at_rank_position( 0u, 0u ) == rank_ntk.get_node( c ) );
+  CHECK( rank_ntk.at_rank_position( 0u, 1u ) == rank_ntk.get_node( b ) );
+
+  // sort rank 0 in ascending order
+  rank_ntk.sort_rank( 0u, std::less<node<Ntk>>{} );
+
+  CHECK( rank_ntk.rank_position( rank_ntk.get_node( a ) ) == 0u );
+  CHECK( rank_ntk.rank_position( rank_ntk.get_node( b ) ) == 1u );
+  CHECK( rank_ntk.rank_position( rank_ntk.get_node( c ) ) == 2u );
+
+  CHECK( rank_ntk.at_rank_position( 0u, 0u ) == rank_ntk.get_node( a ) );
+  CHECK( rank_ntk.at_rank_position( 0u, 1u ) == rank_ntk.get_node( b ) );
+  CHECK( rank_ntk.at_rank_position( 0u, 2u ) == rank_ntk.get_node( c ) );
 }
