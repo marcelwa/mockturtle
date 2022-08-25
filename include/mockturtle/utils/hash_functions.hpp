@@ -27,7 +27,7 @@
   \file hash_functions.hpp
   \brief hash specializations for collections.
 
-  \author Dewmini Marakkalage 
+  \author Dewmini Marakkalage
 */
 
 #pragma once
@@ -36,6 +36,7 @@
 #include <map>
 #include <set>
 #include <tuple>
+#include <utility>
 #include <vector>
 
 namespace mockturtle
@@ -54,6 +55,9 @@ struct hash<std::tuple<A, B, C>>;
 template<typename A, typename B>
 struct hash<std::tuple<A, B>>;
 
+template<typename A, typename B>
+struct hash<std::pair<A, B>>;
+
 template<typename A>
 struct hash<std::vector<A>>;
 
@@ -62,7 +66,6 @@ struct hash<std::multiset<A>>;
 
 template<typename A, typename B>
 struct hash<std::map<A, B>>;
-
 
 template<typename A, typename B>
 struct hash<std::tuple<A, B>>
@@ -96,6 +99,22 @@ private:
   hash<A> ha;
   hash<B> hb;
   hash<C> hc;
+};
+
+template<typename A, typename B>
+struct hash<std::pair<A, B>>
+{
+public:
+  size_t operator()( const std::pair<const A, const B>& key ) const
+  {
+    size_t seed = ha( key.first );
+    seed ^= hb( key.second ) + 0x9e3779b9 + ( seed << 6 ) + ( seed >> 2 );
+    return seed;
+  }
+
+private:
+  hash<A> ha;
+  hash<B> hb;
 };
 
 template<typename A>

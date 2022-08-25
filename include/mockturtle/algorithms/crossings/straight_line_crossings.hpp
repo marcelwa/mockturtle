@@ -68,6 +68,7 @@ public:
   {
     stopwatch t{ stats.time_total };
 
+    // TODO needs performance improvements!
     foreach_edge( ntk, [this]( auto const& src1, const auto& tgt1 )
                   { foreach_edge( ntk, [this, &src1, &tgt1]( auto const& src2, const auto& tgt2 )
                                   {
@@ -76,7 +77,7 @@ public:
                                       ++stats.num_crossings;
                                     } } ); } );
 
-    // account for double counting of all crossings
+    // account for double counting of all crossings TODO can be removed once performance optimizations are in place
     stats.num_crossings /= 2;
   }
 
