@@ -246,12 +246,13 @@ private:
   }
 
   // moves the first block to index pos via multiple swaps
-  void swap_front_to_position( block_list& b_list, const std::size_t pos ) const noexcept
+  void swap_back_to_position( block_list& b_list, const std::size_t pos ) const noexcept
   {
-    for ( std::size_t i = 0u; i < pos; ++i )
+    assert( pos < b_list.size() && "swap_back_to_position: pos out of bounds" );
+
+    for ( std::size_t i = b_list.size() - 1; i > pos; --i )
     {
-      assert( i < b_list.size() - 1 && "swap_front_to_position: pos out of bounds" );
-      std::swap( b_list[i], b_list[i + 1] );
+      std::swap( b_list[i], b_list[i - 1] );
     }
 
     // update the block indices
@@ -298,7 +299,7 @@ private:
     }
 
     // new block list ordered B'[1] ... B'[p*], A, B'[p* + 1] ... B'[ |B'| - 1 ]
-    swap_front_to_position( B_prime, p_star );
+    swap_back_to_position( B_prime, p_star );
 
     return B_prime;
   }
