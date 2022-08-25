@@ -35,7 +35,6 @@
 #include "../../utils/hash_functions.hpp"
 #include "../../utils/node_map.hpp"
 #include "../../utils/stopwatch.hpp"
-#include "../../views/topo_view.hpp"
 
 #include <cmath>
 #include <limits>
@@ -57,8 +56,6 @@ struct crossing_optimization_stats
 {
   /*! \brief Total runtime. */
   stopwatch<>::duration time_total{ 0 };
-  /*! \brief Number of crossings */
-  uint32_t num_crossings{ 0 };
 };
 
 namespace detail
@@ -141,43 +138,41 @@ private:
   block_list B{};
 
   // gathers nodes that could belong to the same block (1-in-1-out chains)
-  template<typename TopoNtk>
-  void gather_block_nodes( const TopoNtk& topo_ntk, const node<TopoNtk>& n, std::vector<node<TopoNtk>>& nodes ) noexcept
+  void gather_block_nodes( const node<Ntk>& n, std::vector<node<Ntk>>& nodes ) noexcept
   {
     // if node n was already visited, skip it
-    if ( topo_ntk.visited( n ) == topo_ntk.trav_id() )
+    if ( ntk.visited( n ) == ntk.trav_id() )
     {
       return;
     }
 
     // otherwise, mark it as visited and add it to the node list
-    topo_ntk.set_visited( n, topo_ntk.trav_id() );
+    ntk.set_visited( n, ntk.trav_id() );
     nodes.push_back( n );
 
     // if node n has only one input and one output, it can be part of a "dummy node block"
-    if ( topo_ntk.fanin_size( n ) == 1 && topo_ntk.fanout_size( n ) == 1 )
+    if ( ntk.fanin_size( n ) == 1 && ntk.fanout_size( n ) == 1 )
     {
-      topo_ntk.foreach_fanout( n, [this, &topo_ntk, &nodes]( const auto& fon )
-                               { gather_block_nodes( topo_ntk, fon, nodes ); } );
+      ntk.foreach_fanout( n, [this, &nodes]( const auto& fon )
+                          { gather_block_nodes( fon, nodes ); } );
     }
   }
 
   // computes the level span of a block given by the upper and lower levels it encompasses; if the block is just a single node (with no dummy vertices), the level span is 0
   // should a node's fanouts skip any levels, the lower level is set to the maximum level of the fanouts
-  template<typename TopoNtk>
-  [[nodiscard]] std::pair<uint32_t, uint32_t> compute_level_span( const TopoNtk& topo_ntk, const std::vector<node<TopoNtk>>& nodes ) const noexcept
+  [[nodiscard]] std::pair<uint32_t, uint32_t> compute_level_span( const std::vector<node<Ntk>>& nodes ) const noexcept
   {
-    auto max_outgoing_level = topo_ntk.level( nodes.back() ) + 1;
-    topo_ntk.foreach_fanout( nodes.back(), [&topo_ntk, &max_outgoing_level]( const auto& fo )
-                             {
-                                const auto l = topo_ntk.level( fo );
-                                if ( l > max_outgoing_level )
-                                {
-                                  max_outgoing_level = l;
-                                } } );
+    auto max_outgoing_level = ntk.level( nodes.back() ) + 1;
+    ntk.foreach_fanout( nodes.back(), [this, &max_outgoing_level]( const auto& fo )
+                        {
+                          const auto l = ntk.level( fo );
+                          if ( l > max_outgoing_level )
+                          {
+                            max_outgoing_level = l;
+                          } } );
 
     // the upper end of the span is the lowest level in the block
-    const auto u = topo_ntk.level( nodes.front() );
+    const auto u = ntk.level( nodes.front() );
     // the lower end of the span is the highest level in the block - 1 (by considering level gaps as dummy vertices of the block)
     const auto l = max_outgoing_level - 1;
 
@@ -185,19 +180,18 @@ private:
   }
 
   // creates a single block from a list of nodes
-  template<typename TopoNtk>
-  [[nodiscard]] std::shared_ptr<block> create_block( const TopoNtk& topo_ntk, const node<TopoNtk>& n ) noexcept
+  [[nodiscard]] std::shared_ptr<block> create_block( const node<Ntk>& n ) noexcept
   {
-    std::vector<node<TopoNtk>> nodes{};
-    gather_block_nodes( topo_ntk, n, nodes );
+    std::vector<node<Ntk>> nodes{};
+    gather_block_nodes( n, nodes );
 
     auto b = std::make_shared<block>();
     b->nodes = nodes;
-    b->span = compute_level_span( topo_ntk, nodes );
-    b->N_plus = std::vector<node<Ntk>>( topo_ntk.fanout_size( b->lower() ) );
-    b->N_minus = std::vector<node<Ntk>>( topo_ntk.fanin_size( b->upper() ) );
-    b->I_plus = std::vector<std::size_t>( topo_ntk.fanout_size( b->lower() ) );
-    b->I_minus = std::vector<std::size_t>( topo_ntk.fanin_size( b->upper() ) );
+    b->span = compute_level_span( nodes );
+    b->N_plus = std::vector<node<Ntk>>( ntk.fanout_size( b->lower() ) );
+    b->N_minus = std::vector<node<Ntk>>( ntk.fanin_size( b->upper() ) );
+    b->I_plus = std::vector<std::size_t>( ntk.fanout_size( b->lower() ) );
+    b->I_minus = std::vector<std::size_t>( ntk.fanin_size( b->upper() ) );
 
     std::for_each( b->nodes.cbegin(), b->nodes.cend(), [this, &b]( const auto& block_node )
                    { get_block[block_node] = b; } );
@@ -208,26 +202,28 @@ private:
   // creates the initial block list
   void initialize_block_list() noexcept
   {
-    topo_view topo_ntk{ ntk };
-    topo_ntk.incr_trav_id();
+    ntk.incr_trav_id();
 
-    topo_ntk.foreach_node( [this, &topo_ntk]( const auto& n )
-                           {
-                             // skip constants
-                             if ( topo_ntk.is_constant( n ) )
-                             {
-                               return;
-                             }
-                             // skip nodes already visited
-                             if ( topo_ntk.visited( n ) == topo_ntk.trav_id() )
-                             {
-                               return;
-                             }
+    for ( auto l = 0u; l <= ntk.depth(); ++l )
+    {
+      ntk.foreach_node_in_rank( l, [this]( const auto& n )
+                                {
+                                  // skip constants
+                                  if ( ntk.is_constant( n ) )
+                                  {
+                                    return;
+                                  }
+                                  // skip nodes already visited
+                                  if ( ntk.visited( n ) == ntk.trav_id() )
+                                  {
+                                    return;
+                                  }
 
-                             // create the block for node n
-                             B.push_back( create_block( topo_ntk, n ) );
-                             // store its current position within the block
-                             B.back()->pi = B.size() - 1; } );
+                                  // create the block for node n
+                                  B.push_back( create_block( n ) );
+                                  // store its current position within the block
+                                  B.back()->pi = B.size() - 1; } );
+    }
   }
 
   // don't deep-copy the block list to avoid unnecessary copies and invalidating the get_block associations
@@ -258,17 +254,19 @@ private:
       std::swap( b_list[i], b_list[i + 1] );
     }
 
-    // TODO do we need to update the pi indices? probably not because sort_adjacencies will do that
+    // update the block indices
+    std::for_each( b_list.cbegin(), b_list.cend(), [i = 0u]( auto& b ) mutable
+                   { b->pi = i++; } );
   }
 
   void global_sifting() noexcept
   {
-    // make a shallow copy of B for the subsequent iteration to ensure validity while B is being altered
-    const auto B_copy = B;
-
     // for each sifting round
     for ( auto i = 0; i < params.rho; ++i )
     {
+      // create a shallow copy of B for the subsequent iteration to ensure validity while B is being altered
+      const auto B_copy = B;
+
       for ( const auto& A : B_copy )
       {
         B = sifting_step( A );
@@ -276,7 +274,7 @@ private:
     }
   }
 
-  block_list sifting_step( const std::shared_ptr<block>& A ) noexcept
+  block_list sifting_step( std::shared_ptr<block> A ) noexcept
   {
     // new block list has A in the front
     auto B_prime = copy_block_list_with_new_front( A );
@@ -376,7 +374,7 @@ private:
   };
 
   // returns the change in crossing count; A_block and B_block are consecutive blocks in b_list
-  [[nodiscard]] int32_t sifting_swap( block_list& b_list, const std::shared_ptr<block>& A_block, const std::shared_ptr<block>& B_block ) noexcept
+  [[nodiscard]] int32_t sifting_swap( block_list& b_list, std::shared_ptr<block> A_block, std::shared_ptr<block> B_block ) noexcept
   {
     // set of level-direction pairs
     std::set<std::pair<uint32_t, direction>> L{};
@@ -411,9 +409,7 @@ private:
 
     // swap A_block and B_block in B_list
     std::swap( b_list[A_block->pi], b_list[B_block->pi] );
-
-    ++( A_block->pi );
-    --( B_block->pi );
+    std::swap( A_block->pi, B_block->pi );
 
     return Delta;
   }
@@ -476,16 +472,15 @@ private:
         auto& b_I = ( d == direction::PLUS ? get_block[b]->I_plus : get_block[b]->I_minus );
 
         // N^-d(z)
-        auto& z_N = d == direction::PLUS ? get_block[z]->N_minus : get_block[z]->N_plus; // note the switched direction
+        auto& z_N = ( d == direction::PLUS ? get_block[z]->N_minus : get_block[z]->N_plus ); // note the switched direction
         // I^-d(z)
-        auto& z_I = d == direction::PLUS ? get_block[z]->I_minus : get_block[z]->I_plus; // note the switched direction
+        auto& z_I = ( d == direction::PLUS ? get_block[z]->I_minus : get_block[z]->I_plus ); // note the switched direction
 
         // swap entries at positions I^d(a)[i] and I^d(b)[j] in N^-d(z) and in I^-d(z)
         std::swap( z_N[a_I[i]], z_N[b_I[j]] );
         std::swap( z_I[a_I[i]], z_I[b_I[j]] );
 
-        a_I[i]++;
-        b_I[j]--;
+        std::swap( a_I[i], b_I[j] );
 
         i++;
         j++;

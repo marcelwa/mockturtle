@@ -37,17 +37,10 @@
 namespace mockturtle
 {
 
-struct straight_line_crossings_params
-{
-  int placeholder;
-};
-
 struct straight_line_crossings_stats
 {
   /*! \brief Total runtime. */
   stopwatch<>::duration time_total{ 0 };
-  /*! \brief Number of crossings */
-  uint32_t num_crossings{ 0 };
 };
 
 namespace detail
@@ -57,14 +50,13 @@ template<typename Ntk>
 class straight_line_crossings_impl
 {
 public:
-  straight_line_crossings_impl( Ntk const& src, straight_line_crossings_params const& ps, straight_line_crossings_stats& st ) noexcept
+  straight_line_crossings_impl( Ntk const& src, straight_line_crossings_stats& st ) noexcept
       : ntk{ src },
-        params{ ps },
         stats{ st }
   {
   }
 
-  void run() noexcept
+  uint32_t run() noexcept
   {
     stopwatch t{ stats.time_total };
 
@@ -74,11 +66,13 @@ public:
                                   {
                                     if ( is_straight_line_crossing( src1, tgt1, src2, tgt2 ) )
                                     {
-                                      ++stats.num_crossings;
+                                      ++crossing_number;
                                     } } ); } );
 
     // account for double counting of all crossings TODO can be removed once performance optimizations are in place
-    stats.num_crossings /= 2;
+    crossing_number /= 2;
+
+    return crossing_number;
   }
 
 private:
@@ -87,13 +81,13 @@ private:
    */
   Ntk const& ntk;
   /**
-   * Parameters.
-   */
-  straight_line_crossings_params const& params;
-  /**
    * Statistics.
    */
   straight_line_crossings_stats& stats;
+  /**
+   * Number of crossings.
+   */
+  uint32_t crossing_number{ 0 };
 
   template<typename Fun>
   void foreach_edge( Ntk const& ntk, Fun&& fun )
@@ -150,7 +144,7 @@ private:
 } // namespace detail
 
 template<typename Ntk>
-void straight_line_crossings( Ntk const& rank_ntk, straight_line_crossings_params const& ps = {}, straight_line_crossings_stats* pst = nullptr ) noexcept
+uint32_t straight_line_crossings( Ntk const& rank_ntk, straight_line_crossings_stats* pst = nullptr ) noexcept
 {
   static_assert( is_network_type_v<Ntk>, "Ntk is not a network type" );
   static_assert( has_foreach_node_v<Ntk>, "Ntk does not implement the foreach_node function" );
@@ -161,13 +155,15 @@ void straight_line_crossings( Ntk const& rank_ntk, straight_line_crossings_param
   static_assert( has_level_v<Ntk>, "Ntk does not implement the level function" );
 
   straight_line_crossings_stats st;
-  detail::straight_line_crossings_impl<Ntk> p{ rank_ntk, ps, st };
-  p.run();
+  detail::straight_line_crossings_impl<Ntk> p{ rank_ntk, st };
+  const auto crossing_number = p.run();
 
   if ( pst )
   {
     *pst = st;
   }
+
+  return crossing_number;
 }
 
 } // namespace mockturtle

@@ -1,6 +1,7 @@
 #include <catch.hpp>
 
 #include <mockturtle/algorithms/crossings/crossing_optimization.hpp>
+#include <mockturtle/algorithms/crossings/straight_line_crossings.hpp>
 #include <mockturtle/networks/aig.hpp>
 #include <mockturtle/networks/cover.hpp>
 #include <mockturtle/networks/klut.hpp>
@@ -21,11 +22,9 @@ TEMPLATE_TEST_CASE(
 {
   rank_view<depth_view<fanout_view<TestType>>> rank_ntk{};
 
-  crossing_optimization_stats st{};
+  crossing_optimization( rank_ntk );
 
-  crossing_optimization( rank_ntk, {}, &st );
-
-  CHECK( st.num_crossings == 0 );
+  CHECK( straight_line_crossings( rank_ntk ) == 0 );
 }
 
 TEMPLATE_TEST_CASE(
@@ -39,9 +38,10 @@ TEMPLATE_TEST_CASE(
   auto const a1 = rank_ntk.create_and( x1, x2 );
   rank_ntk.create_po( a1 );
 
-  crossing_optimization_stats st{};
+  crossing_optimization( rank_ntk );
 
-  crossing_optimization( rank_ntk, {}, &st );
+  CHECK( straight_line_crossings( rank_ntk ) == 0 );
+}
 
   CHECK( st.num_crossings == 0 );
 }

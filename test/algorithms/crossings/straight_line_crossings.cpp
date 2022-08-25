@@ -20,11 +20,7 @@ TEMPLATE_TEST_CASE(
 {
   rank_view<depth_view<TestType>> const rank_ntk{};
 
-  straight_line_crossings_stats st{};
-
-  straight_line_crossings( rank_ntk, {}, &st );
-
-  CHECK( st.num_crossings == 0 );
+  CHECK( straight_line_crossings( rank_ntk ) == 0 );
 }
 
 TEMPLATE_TEST_CASE(
@@ -40,16 +36,12 @@ TEMPLATE_TEST_CASE(
 
   rank_view<depth_view<TestType>> rank_ntk{ depth_view<TestType>{ ntk } };
 
-  straight_line_crossings_stats st{};
-
-  straight_line_crossings( rank_ntk, {}, &st );
-
-  CHECK( st.num_crossings == 0 );
+  CHECK( straight_line_crossings( rank_ntk ) == 0 );
 
   // there should be no crossings in the network no matter the order of the inputs
   rank_ntk.swap( rank_ntk.get_node( x1 ), rank_ntk.get_node( x2 ) );
 
-  CHECK( st.num_crossings == 0 );
+  CHECK( straight_line_crossings( rank_ntk ) == 0 );
 }
 
 TEMPLATE_TEST_CASE(
@@ -89,11 +81,7 @@ TEMPLATE_TEST_CASE(
   REQUIRE( rank_ntk.rank_position( rank_ntk.get_node( x8 ) ) == 1 );
   REQUIRE( rank_ntk.rank_position( rank_ntk.get_node( x9 ) ) == 2 );
 
-  straight_line_crossings_stats st{};
-
-  straight_line_crossings( rank_ntk, {}, &st );
-
-  CHECK( st.num_crossings == 4 );
+  CHECK( straight_line_crossings( rank_ntk ) == 4 );
 }
 
 TEMPLATE_TEST_CASE(
@@ -129,11 +117,7 @@ TEMPLATE_TEST_CASE(
     REQUIRE( rank_ntk.rank_position( rank_ntk.get_node( x5 ) ) == 0 );
     REQUIRE( rank_ntk.rank_position( rank_ntk.get_node( x6 ) ) == 0 );
 
-    straight_line_crossings_stats st{};
-
-    straight_line_crossings( rank_ntk, {}, &st );
-
-    CHECK( st.num_crossings == 1 );
+    CHECK( straight_line_crossings( rank_ntk ) == 1 );
   }
   SECTION( "Symmetrically stacked nodes" )
   {
@@ -161,10 +145,6 @@ TEMPLATE_TEST_CASE(
     REQUIRE( rank_ntk.rank_position( rank_ntk.get_node( x5 ) ) == 0 );
     REQUIRE( rank_ntk.rank_position( rank_ntk.get_node( x6 ) ) == 1 );
 
-    straight_line_crossings_stats st{};
-
-    straight_line_crossings( rank_ntk, {}, &st );
-
-    CHECK( st.num_crossings == 4 );
+    CHECK( straight_line_crossings( rank_ntk ) == 4 );
   }
 }

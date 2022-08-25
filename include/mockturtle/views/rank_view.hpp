@@ -208,10 +208,13 @@ public:
   template<typename Cmp>
   void sort_rank( uint32_t const level, Cmp const& cmp )
   {
-    assert( level < ranks.size() && "level must be less than the number of ranks" );
-    std::sort( ranks[level].begin(), ranks[level].end(), cmp );
-    std::for_each( ranks[level].cbegin(), ranks[level].cend(), [this, i = 0u]( auto const& n ) mutable
-                   { rank_pos[n] = i++; } );
+    // level must be less than the number of ranks
+    if ( level < ranks.size() )
+    {
+      std::sort( ranks[level].begin(), ranks[level].end(), cmp );
+      std::for_each( ranks[level].cbegin(), ranks[level].cend(), [this, i = 0u]( auto const& n ) mutable
+                     { rank_pos[n] = i++; } );
+    }
   }
   /**
    * \brief Applies a given function to each node in the rank level in order.
