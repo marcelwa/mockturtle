@@ -85,7 +85,7 @@ public:
     global_sifting();
 
     // sort each rank by the block list order
-    for ( auto level = 0u; level < ntk.depth(); ++level )
+    for ( auto level = 0u; level <= ntk.depth(); ++level )
     {
       ntk.sort_rank( level, [this]( const auto& lhs, const auto& rhs )
                      { return get_block[lhs]->pi < get_block[rhs]->pi; } );
@@ -167,7 +167,7 @@ private:
   template<typename TopoNtk>
   [[nodiscard]] std::pair<uint32_t, uint32_t> compute_level_span( const TopoNtk& topo_ntk, const std::vector<node<TopoNtk>>& nodes ) const noexcept
   {
-    auto max_outgoing_level = topo_ntk.level( nodes.back() );
+    auto max_outgoing_level = topo_ntk.level( nodes.back() ) + 1;
     topo_ntk.foreach_fanout( nodes.back(), [&topo_ntk, &max_outgoing_level]( const auto& fo )
                              {
                                 const auto l = topo_ntk.level( fo );
@@ -194,6 +194,10 @@ private:
     auto b = std::make_shared<block>();
     b->nodes = nodes;
     b->span = compute_level_span( topo_ntk, nodes );
+    b->N_plus = std::vector<node<Ntk>>( topo_ntk.fanout_size( b->lower() ) );
+    b->N_minus = std::vector<node<Ntk>>( topo_ntk.fanin_size( b->upper() ) );
+    b->I_plus = std::vector<std::size_t>( topo_ntk.fanout_size( b->lower() ) );
+    b->I_minus = std::vector<std::size_t>( topo_ntk.fanin_size( b->upper() ) );
 
     std::for_each( b->nodes.cbegin(), b->nodes.cend(), [this, &b]( const auto& block_node )
                    { get_block[block_node] = b; } );
@@ -204,26 +208,26 @@ private:
   // creates the initial block list
   void initialize_block_list() noexcept
   {
-    ntk.incr_trav_id();
-
     topo_view topo_ntk{ ntk };
+    topo_ntk.incr_trav_id();
+
     topo_ntk.foreach_node( [this, &topo_ntk]( const auto& n )
                            {
-                        // skip constants
-                        if ( topo_ntk.is_constant( n ) )
-                        {
-                          return;
-                        }
-                        // skip nodes already visited
-                        if ( topo_ntk.visited( n ) == topo_ntk.trav_id() )
-                        {
-                          return;
-                        }
+                             // skip constants
+                             if ( topo_ntk.is_constant( n ) )
+                             {
+                               return;
+                             }
+                             // skip nodes already visited
+                             if ( topo_ntk.visited( n ) == topo_ntk.trav_id() )
+                             {
+                               return;
+                             }
 
-                        // create the block for node n
-                        B.push_back( create_block( topo_ntk, n ) );
-                        // store its current position within the block
-                        B.back()->pi = B.size() - 1; } );
+                             // create the block for node n
+                             B.push_back( create_block( topo_ntk, n ) );
+                             // store its current position within the block
+                             B.back()->pi = B.size() - 1; } );
   }
 
   // don't deep-copy the block list to avoid unnecessary copies and invalidating the get_block associations
@@ -312,8 +316,6 @@ private:
       // NOTE there is a hint in the paper that only updating the changed N and I improves runtime
       B_prime[i]->N_minus.clear();
       B_prime[i]->N_plus.clear();
-      B_prime[i]->I_minus.clear();
-      B_prime[i]->I_plus.clear();
     }
 
     // stores p values for each edge
@@ -326,22 +328,26 @@ private:
                      const auto v = A->upper();
                      ntk.foreach_fanin( v, [this, &p, &A, &v]( const auto& fin )
                                         {
-                                          const auto u = ntk.get_node( fin );
-                                          const auto s = std::make_pair( u, v );
-                                          const auto u_block = get_block[u];
-                                          // add v to the next free position j of N^+(u)
-                                          const auto j = u_block->N_plus.size();
-                                          u_block->N_plus.push_back( v );
+                                          // skip constants
+                                          if ( const auto u = ntk.get_node( fin ); !ntk.is_constant( u ) )
+                                          {
+                                            const auto s = std::make_pair( u, v );
+                                            const auto u_block = get_block[u];
+                                            // add v to the next free position j of N^+(u)
+                                            const auto j = u_block->N_plus.size();
+                                            u_block->N_plus.push_back( v );
 
-                                          if ( A->pi < u_block->pi ) // first traversal of segment s = (u, v)
-                                          {
-                                            p[s] = j;
+                                            if ( A->pi < u_block->pi ) // first traversal of segment s = (u, v)
+                                            {
+                                              p[s] = j;
+                                            }
+                                            else  // second traversal of segment s = (u, v)
+                                            {
+                                              u_block->I_plus[j] = p[s];
+                                              get_block[v]->I_minus[p[s]] = j;
+                                            }
                                           }
-                                          else  // second traversal of segment s = (u, v)
-                                          {
-                                            u_block->I_plus[j] = p[s];
-                                            get_block[v]->I_minus[p[s]] = j;
-                                          } } );
+                                        } );
 
                      // update outgoing adjacencies
                      const auto w = A->lower();
@@ -546,8 +552,8 @@ void crossing_optimization( Ntk& rank_ntk, crossing_optimization_params const& p
   static_assert( has_visited_v<Ntk>, "Ntk does not implement the visited function" );
   static_assert( has_set_visited_v<Ntk>, "Ntk does not implement the set_visited function" );
   static_assert( has_trav_id_v<Ntk>, "Ntk does not implement the trav_id function" );
-  static_assert( has_rank_position_v<Ntk>, "Ntk does not implement the rank_position function" );
   static_assert( has_level_v<Ntk>, "Ntk does not implement the level function" );
+  static_assert( has_sort_rank_v<Ntk>, "Ntk does not implement the sort_rank function" );
 
   crossing_optimization_stats st;
   detail::crossing_optimization_impl<Ntk> p{ rank_ntk, ps, st };
