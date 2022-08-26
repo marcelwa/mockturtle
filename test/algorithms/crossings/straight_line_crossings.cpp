@@ -85,8 +85,8 @@ TEMPLATE_TEST_CASE(
 }
 
 TEMPLATE_TEST_CASE(
-    "Straight-line crossing number with inputs in different levels", "[crossings]",
-    aig_network )
+    "Straight-line crossing number with fanins in different levels", "[crossings]",
+    aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network )
 {
   rank_view<depth_view<TestType>> rank_ntk{};
 
@@ -127,7 +127,7 @@ TEMPLATE_TEST_CASE(
 
     // rank 2
     auto const x3 = rank_ntk.create_and( x1, x2 );
-    auto const x4 = rank_ntk.create_and( !x1, !x2 );
+    auto const x4 = rank_ntk.create_or( x1, x2 );
 
     // rank 3
     auto const x5 = rank_ntk.create_and( x3, x2 );
