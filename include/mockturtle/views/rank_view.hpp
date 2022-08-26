@@ -226,8 +226,11 @@ public:
   template<typename Fn>
   void foreach_node_in_rank( uint32_t const level, Fn&& fn ) const
   {
-    assert( level < ranks.size() && "level must be less than the number of ranks" );
-    detail::foreach_element( ranks[level].cbegin(), ranks[level].cend(), fn );
+    // level must be less than the number of ranks
+    if ( level < ranks.size() )
+    {
+      detail::foreach_element( ranks[level].cbegin(), ranks[level].cend(), fn );
+    }
   }
   /**
    * Overrides the base class method to also call the add_event on create_pi().
