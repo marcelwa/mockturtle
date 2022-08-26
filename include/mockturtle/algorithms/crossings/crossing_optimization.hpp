@@ -260,8 +260,8 @@ private:
       std::swap( b_list[i], b_list[i - 1] );
     }
 
-    // update the block indices
-    std::for_each( b_list.cbegin(), b_list.cend(), [i = 0u]( auto& b ) mutable
+    // update the block indices (starting at pos since everything before did not change)
+    std::for_each( b_list.cbegin() + pos, b_list.cend(), [i = pos]( auto& b ) mutable
                    { b->pi = i++; } );
   }
 
