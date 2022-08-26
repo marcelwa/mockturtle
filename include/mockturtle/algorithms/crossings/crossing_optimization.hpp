@@ -155,7 +155,11 @@ private:
     if ( ntk.fanin_size( n ) == 1 && ntk.fanout_size( n ) == 1 )
     {
       ntk.foreach_fanout( n, [this, &nodes]( const auto& fon )
-                          { gather_block_nodes( fon, nodes ); } );
+                          {
+                            if ( ntk.fanin_size( fon ) == 1 && ntk.fanout_size( fon ) == 1 )
+                            {
+                              gather_block_nodes( fon, nodes );
+                            } } );
     }
   }
 
