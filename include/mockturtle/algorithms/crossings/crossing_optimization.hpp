@@ -36,6 +36,7 @@
 #include "../../utils/node_map.hpp"
 #include "../../utils/stopwatch.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <memory>
@@ -245,7 +246,7 @@ private:
     return B_prime;
   }
 
-  // moves the first block to index pos via multiple swaps
+  // moves the last block to index pos via multiple swaps
   void swap_back_to_position( block_list& b_list, const std::size_t pos ) const noexcept
   {
     assert( pos < b_list.size() && "swap_back_to_position: pos out of bounds" );
@@ -282,7 +283,7 @@ private:
 
     sort_adjacencies( B_prime );
 
-    int32_t Chi = 0, Chi_star = 0; // current and best number of crossings
+    int64_t Chi = 0, Chi_star = 0; // current and best number of crossings
     std::size_t p_star = 0;        // best block position
 
     // start at 1 to skip A in B_prime
@@ -323,37 +324,38 @@ private:
     // for each A in B'
     std::for_each( B_prime.cbegin(), B_prime.cend(), [this, &p]( const auto& A )
                    {
-                     // update incoming adjacencies
-                     const auto v = A->upper();
-                     ntk.foreach_fanin( v, [this, &p, &A, &v]( const auto& fin )
-                                        {
-                                          // skip constants
-                                          if ( const auto u = ntk.get_node( fin ); !ntk.is_constant( u ) )
-                                          {
-                                            const auto s = std::make_pair( u, v );
-                                            const auto u_block = get_block[u];
-                                            // add v to the next free position j of N^+(u)
-                                            const auto j = u_block->N_plus.size();
-                                            u_block->N_plus.push_back( v );
+                     { // update incoming adjacencies
 
-                                            if ( A->pi < u_block->pi ) // first traversal of segment s = (u, v)
-                                            {
-                                              p[s] = j;
-                                            }
-                                            else  // second traversal of segment s = (u, v)
-                                            {
-                                              u_block->I_plus[j] = p[s];
-                                              get_block[v]->I_minus[p[s]] = j;
-                                            }
-                                          }
-                                        } );
+                       const auto v = A->upper();
+                       const auto ordered_fanins = get_ordered_fanin_nodes( v );
+                       std::for_each( ordered_fanins.cbegin(), ordered_fanins.cend(), [this, &p, &A, &v]( const auto& u )
+                                     {
+                                       const auto s = std::make_pair( u, v );
+                                       const auto& u_block = get_block[u];
+                                       // add v to the next free position j of N^+(u)
+                                       const auto j = u_block->N_plus.size();
+                                       u_block->N_plus.push_back( v );
 
-                     // update outgoing adjacencies
-                     const auto w = A->lower();
-                     ntk.foreach_fanout( w, [this, &p, &A, &w]( const auto& x )
-                                        {
+                                       if ( A->pi < u_block->pi ) // first traversal of segment s = (u, v)
+                                       {
+                                         p[s] = j;
+                                       }
+                                       else  // second traversal of segment s = (u, v)
+                                       {
+                                         u_block->I_plus[j] = p[s];
+                                         get_block[v]->I_minus[p[s]] = j;
+                                       }
+                                     } );
+                     }
+
+                     { // update outgoing adjacencies
+
+                       const auto w = A->lower();
+                       const auto ordered_fanouts = get_ordered_fanout_nodes( w );
+                       std::for_each( ordered_fanouts.cbegin(), ordered_fanouts.cend(), [this, &p, &A, &w]( const auto& x )
+                                      {
                                           const auto s = std::make_pair( w, x );
-                                          const auto x_block = get_block[x];
+                                          const auto& x_block = get_block[x];
                                           // add w to the next free position j of N^-(x)
                                           const auto j = x_block->N_minus.size();
                                           x_block->N_minus.push_back( w );
@@ -365,7 +367,8 @@ private:
                                           {
                                             x_block->I_minus[j] = p[s];
                                             get_block[w]->I_plus[p[s]] = j;
-                                          } } ); } );
+                                          } } );
+                     } } );
   }
 
   enum direction
@@ -375,11 +378,11 @@ private:
   };
 
   // returns the change in crossing count; A_block and B_block are consecutive blocks in b_list
-  [[nodiscard]] int32_t sifting_swap( block_list& b_list, std::shared_ptr<block> A_block, std::shared_ptr<block> B_block ) noexcept
+  [[nodiscard]] int64_t sifting_swap( block_list& b_list, std::shared_ptr<block> A_block, std::shared_ptr<block> B_block ) noexcept
   {
     // set of level-direction pairs
     std::set<std::pair<uint32_t, direction>> L{};
-    int32_t Delta{ 0 };
+    int64_t Delta{ 0 };
 
     // determine directions
     if ( const auto l = phi( A_block->upper() ); is_in_span( l, B_block ) )
@@ -416,29 +419,30 @@ private:
   }
 
   // determines the crossing count change for swapping a and b
-  [[nodiscard]] int32_t uswap( const node<Ntk>& a, const node<Ntk>& b, const direction& d ) noexcept
+  [[nodiscard]] int64_t uswap( const node<Ntk>& a, const node<Ntk>& b, const direction& d ) noexcept
   {
-    const auto& x = d == direction::PLUS ? get_block[a]->N_plus : get_block[a]->N_minus;
-    const auto& y = d == direction::PLUS ? get_block[b]->N_plus : get_block[b]->N_minus;
+    const auto& x = ( d == direction::PLUS ? get_block[a]->N_plus : get_block[a]->N_minus );
+    const auto& y = ( d == direction::PLUS ? get_block[b]->N_plus : get_block[b]->N_minus );
 
-    int32_t c{ 0 };
-    std::size_t i{ 0 }, j{ 0 };
+    int64_t c{ 0 };
+    int64_t i{ 0 }, j{ 0 };
+    int64_t x_size{ static_cast<int64_t>( x.size() ) }, y_size{ static_cast<int64_t>( y.size() ) };
 
-    while ( i < x.size() && j < y.size() )
+    while ( i < x_size && j < y_size )
     {
       if ( get_block[x[i]]->pi < get_block[y[j]]->pi )
       {
-        c = c + ( y.size() - j );
+        c += ( y_size - j );
         i++;
       }
       else if ( get_block[x[i]]->pi > get_block[y[j]]->pi )
       {
-        c = c - ( x.size() - i );
+        c -= ( x_size - i );
         j++;
       }
       else
       {
-        c = c + ( y.size() - j ) - ( x.size() - i );
+        c += ( y_size - j ) - ( x_size - i );
         i++;
         j++;
       }
@@ -449,8 +453,8 @@ private:
 
   void update_adjacencies( const node<Ntk>& a, const node<Ntk>& b, const direction& d ) noexcept
   {
-    const auto& x = d == direction::PLUS ? get_block[a]->N_plus : get_block[a]->N_minus;
-    const auto& y = d == direction::PLUS ? get_block[b]->N_plus : get_block[b]->N_minus;
+    const auto& x = ( d == direction::PLUS ? get_block[a]->N_plus : get_block[a]->N_minus );
+    const auto& y = ( d == direction::PLUS ? get_block[b]->N_plus : get_block[b]->N_minus );
 
     std::size_t i{ 0 }, j{ 0 };
     while ( i < x.size() && j < y.size() )
@@ -492,6 +496,41 @@ private:
   [[nodiscard]] uint32_t phi( const node<Ntk>& n ) const
   {
     return ntk.level( n );
+  }
+
+  // returns fanin nodes (without constants) in order of pi
+  [[nodiscard]] std::vector<node<Ntk>> get_ordered_fanin_nodes( const node<Ntk>& n ) const noexcept
+  {
+    std::vector<node<Ntk>> ordered_fanin_nodes{};
+    ordered_fanin_nodes.reserve( ntk.fanin_size( n ) );
+
+    ntk.foreach_fanin( n, [this, &ordered_fanin_nodes]( const auto& fi )
+                       {
+                         // skip constants
+                         if (const auto fin = ntk.get_node( fi ); !ntk.is_constant(fin) )
+                         {
+                           ordered_fanin_nodes.push_back( fin );
+                         } } );
+
+    std::sort( ordered_fanin_nodes.begin(), ordered_fanin_nodes.end(), [this]( const auto& a, const auto& b )
+               { return get_block[a]->pi < get_block[b]->pi; } );
+
+    return ordered_fanin_nodes;
+  }
+
+  // returns faout nodes in order of pi
+  [[nodiscard]] std::vector<node<Ntk>> get_ordered_fanout_nodes( const node<Ntk>& n ) const noexcept
+  {
+    std::vector<node<Ntk>> ordered_fanout_nodes{};
+    ordered_fanout_nodes.reserve( ntk.fanout_size( n ) );
+
+    ntk.foreach_fanout( n, [this, &ordered_fanout_nodes]( const auto& fon )
+                        { ordered_fanout_nodes.push_back( fon ); } );
+
+    std::sort( ordered_fanout_nodes.begin(), ordered_fanout_nodes.end(), [this]( const auto& a, const auto& b )
+               { return get_block[a]->pi < get_block[b]->pi; } );
+
+    return ordered_fanout_nodes;
   }
 
   // returns whether level is in the span of block b
