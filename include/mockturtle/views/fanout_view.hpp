@@ -1,5 +1,5 @@
 /* mockturtle: C++ logic network library
- * Copyright (C) 2018-2021  EPFL
+ * Copyright (C) 2018-2022  EPFL
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -27,6 +27,7 @@
   \file fanout_view.hpp
   \brief Implements fanout for a network
 
+  \author Hanyu Wang
   \author Heinz Riener
   \author Mathias Soeken
 */
@@ -160,6 +161,7 @@ public:
 
   void substitute_node( node const& old_node, signal const& new_signal )
   {
+    assert( !Ntk::is_dead( Ntk::get_node( new_signal ) ) );
     std::unordered_map<node, signal> old_to_new;
     std::stack<std::pair<node, signal>> to_substitute;
     to_substitute.push( { old_node, new_signal } );

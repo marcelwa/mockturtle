@@ -1,5 +1,5 @@
 /* mockturtle: C++ logic network library
- * Copyright (C) 2018-2021  EPFL
+ * Copyright (C) 2018-2022  EPFL
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -34,8 +34,10 @@
 
 #include "../traits.hpp"
 #include "aig.hpp"
+#include "crossed.hpp"
 #include "mig.hpp"
-#include "../views/names_view.hpp"
+
+#include <cassert>
 
 namespace mockturtle
 {
@@ -43,6 +45,7 @@ namespace mockturtle
 class buffered_aig_network : public aig_network
 {
 public:
+  static constexpr bool is_buffered_network_type = true;
 
 #pragma region Create unary functions
   signal create_buf( signal const& a )
@@ -51,7 +54,7 @@ public:
     auto& node = _storage->nodes.emplace_back();
     node.children[0] = a;
     node.children[1] = !a;
-    
+
     if ( index >= .9 * _storage->nodes.capacity() )
     {
       _storage->nodes.reserve( static_cast<uint64_t>( 3.1415f * index ) );
@@ -62,10 +65,10 @@ public:
 
     for ( auto const& fn : _events->on_add )
     {
-      (*fn)( index );
+      ( *fn )( index );
     }
 
-    return {index, 0};
+    return { index, 0 };
   }
 
   void invert( node const& n )
@@ -147,9 +150,10 @@ public:
   void foreach_gate( Fn&& fn ) const
   {
     auto r = range<uint64_t>( 1u, _storage->nodes.size() ); /* start from 1 to avoid constant */
-    detail::foreach_element_if( r.begin(), r.end(),
-                                [this]( auto n ) { return !is_ci( n ) && !is_dead( n ) && !is_buf( n ); },
-                                fn );
+    detail::foreach_element_if(
+        r.begin(), r.end(),
+        [this]( auto n ) { return !is_ci( n ) && !is_dead( n ) && !is_buf( n ); },
+        fn );
   }
 
   template<typename Fn>
@@ -168,44 +172,44 @@ public:
     {
       if constexpr ( detail::is_callable_without_index_v<Fn, signal, bool> )
       {
-        fn( signal{_storage->nodes[n].children[0]} );
+        fn( signal{ _storage->nodes[n].children[0] } );
       }
       else if constexpr ( detail::is_callable_with_index_v<Fn, signal, bool> )
       {
-        fn( signal{_storage->nodes[n].children[0]}, 0 );
+        fn( signal{ _storage->nodes[n].children[0] }, 0 );
       }
       else if constexpr ( detail::is_callable_without_index_v<Fn, signal, void> )
       {
-        fn( signal{_storage->nodes[n].children[0]} );
+        fn( signal{ _storage->nodes[n].children[0] } );
       }
       else if constexpr ( detail::is_callable_with_index_v<Fn, signal, void> )
       {
-        fn( signal{_storage->nodes[n].children[0]}, 0 );
+        fn( signal{ _storage->nodes[n].children[0] }, 0 );
       }
     }
     else
     {
       if constexpr ( detail::is_callable_without_index_v<Fn, signal, bool> )
       {
-        if ( !fn( signal{_storage->nodes[n].children[0]} ) )
+        if ( !fn( signal{ _storage->nodes[n].children[0] } ) )
           return;
-        fn( signal{_storage->nodes[n].children[1]} );
+        fn( signal{ _storage->nodes[n].children[1] } );
       }
       else if constexpr ( detail::is_callable_with_index_v<Fn, signal, bool> )
       {
-        if ( !fn( signal{_storage->nodes[n].children[0]}, 0 ) )
+        if ( !fn( signal{ _storage->nodes[n].children[0] }, 0 ) )
           return;
-        fn( signal{_storage->nodes[n].children[1]}, 1 );
+        fn( signal{ _storage->nodes[n].children[1] }, 1 );
       }
       else if constexpr ( detail::is_callable_without_index_v<Fn, signal, void> )
       {
-        fn( signal{_storage->nodes[n].children[0]} );
-        fn( signal{_storage->nodes[n].children[1]} );
+        fn( signal{ _storage->nodes[n].children[0] } );
+        fn( signal{ _storage->nodes[n].children[1] } );
       }
       else if constexpr ( detail::is_callable_with_index_v<Fn, signal, void> )
       {
-        fn( signal{_storage->nodes[n].children[0]}, 0 );
-        fn( signal{_storage->nodes[n].children[1]}, 1 );
+        fn( signal{ _storage->nodes[n].children[0] }, 0 );
+        fn( signal{ _storage->nodes[n].children[1] }, 1 );
       }
     }
   }
@@ -220,7 +224,8 @@ public:
 
     assert( n != 0 && !is_ci( n ) );
 
-    if ( is_buf( n ) ) return is_complemented( _storage->nodes[n].children[0] ) ? !(*begin) : *begin;
+    if ( is_buf( n ) )
+      return is_complemented( _storage->nodes[n].children[0] ) ? !( *begin ) : *begin;
 
     auto const& c1 = _storage->nodes[n].children[0];
     auto const& c2 = _storage->nodes[n].children[1];
@@ -239,7 +244,8 @@ public:
 
     assert( n != 0 && !is_ci( n ) );
 
-    if ( is_buf( n ) ) return is_complemented( _storage->nodes[n].children[0] ) ? ~(*begin) : *begin;
+    if ( is_buf( n ) )
+      return is_complemented( _storage->nodes[n].children[0] ) ? ~( *begin ) : *begin;
 
     auto const& c1 = _storage->nodes[n].children[0];
     auto const& c2 = _storage->nodes[n].children[1];
@@ -279,7 +285,7 @@ public:
     assert( result.num_blocks() == tt1.num_blocks() || ( result.num_blocks() == tt1.num_blocks() - 1 && result.num_bits() % 64 == 0 ) );
 
     result.resize( tt1.num_bits() );
-    result._bits.back() = ( c1.weight ? ~(tt1._bits.back()) : tt1._bits.back() ) & ( c2.weight ? ~(tt2._bits.back()) : tt2._bits.back() );
+    result._bits.back() = ( c1.weight ? ~( tt1._bits.back() ) : tt1._bits.back() ) & ( c2.weight ? ~( tt2._bits.back() ) : tt2._bits.back() );
     result.mask_bits();
   }
 #pragma endregion
@@ -288,6 +294,7 @@ public:
 class buffered_mig_network : public mig_network
 {
 public:
+  static constexpr bool is_buffered_network_type = true;
 
 #pragma region Create unary functions
   signal create_buf( signal const& a )
@@ -296,8 +303,8 @@ public:
     auto& node = _storage->nodes.emplace_back();
     node.children[0] = a;
     node.children[1] = !a;
-    //node.children[2] = a; // not used
-    
+    // node.children[2] = a; // not used
+
     if ( index >= .9 * _storage->nodes.capacity() )
     {
       _storage->nodes.reserve( static_cast<uint64_t>( 3.1415f * index ) );
@@ -308,10 +315,10 @@ public:
 
     for ( auto const& fn : _events->on_add )
     {
-      (*fn)( index );
+      ( *fn )( index );
     }
 
-    return {index, 0};
+    return { index, 0 };
   }
 
   void invert( node const& n )
@@ -394,9 +401,10 @@ public:
   void foreach_gate( Fn&& fn ) const
   {
     auto r = range<uint64_t>( 1u, _storage->nodes.size() ); /* start from 1 to avoid constant */
-    detail::foreach_element_if( r.begin(), r.end(),
-                                [this]( auto n ) { return !is_ci( n ) && !is_dead( n ) && !is_buf( n ); },
-                                fn );
+    detail::foreach_element_if(
+        r.begin(), r.end(),
+        [this]( auto n ) { return !is_ci( n ) && !is_dead( n ) && !is_buf( n ); },
+        fn );
   }
 
   template<typename Fn>
@@ -415,50 +423,50 @@ public:
     {
       if constexpr ( detail::is_callable_without_index_v<Fn, signal, bool> )
       {
-        fn( signal{_storage->nodes[n].children[0]} );
+        fn( signal{ _storage->nodes[n].children[0] } );
       }
       else if constexpr ( detail::is_callable_with_index_v<Fn, signal, bool> )
       {
-        fn( signal{_storage->nodes[n].children[0]}, 0 );
+        fn( signal{ _storage->nodes[n].children[0] }, 0 );
       }
       else if constexpr ( detail::is_callable_without_index_v<Fn, signal, void> )
       {
-        fn( signal{_storage->nodes[n].children[0]} );
+        fn( signal{ _storage->nodes[n].children[0] } );
       }
       else if constexpr ( detail::is_callable_with_index_v<Fn, signal, void> )
       {
-        fn( signal{_storage->nodes[n].children[0]}, 0 );
+        fn( signal{ _storage->nodes[n].children[0] }, 0 );
       }
     }
     else
     {
       if constexpr ( detail::is_callable_without_index_v<Fn, signal, bool> )
       {
-        if ( !fn( signal{_storage->nodes[n].children[0]} ) )
+        if ( !fn( signal{ _storage->nodes[n].children[0] } ) )
           return;
-        if ( !fn( signal{_storage->nodes[n].children[1]} ) )
+        if ( !fn( signal{ _storage->nodes[n].children[1] } ) )
           return;
-        fn( signal{_storage->nodes[n].children[2]} );
+        fn( signal{ _storage->nodes[n].children[2] } );
       }
       else if constexpr ( detail::is_callable_with_index_v<Fn, signal, bool> )
       {
-        if ( !fn( signal{_storage->nodes[n].children[0]}, 0 ) )
+        if ( !fn( signal{ _storage->nodes[n].children[0] }, 0 ) )
           return;
-        if ( !fn( signal{_storage->nodes[n].children[1]}, 1 ) )
+        if ( !fn( signal{ _storage->nodes[n].children[1] }, 1 ) )
           return;
-        fn( signal{_storage->nodes[n].children[2]}, 2 );
+        fn( signal{ _storage->nodes[n].children[2] }, 2 );
       }
       else if constexpr ( detail::is_callable_without_index_v<Fn, signal, void> )
       {
-        fn( signal{_storage->nodes[n].children[0]} );
-        fn( signal{_storage->nodes[n].children[1]} );
-        fn( signal{_storage->nodes[n].children[2]} );
+        fn( signal{ _storage->nodes[n].children[0] } );
+        fn( signal{ _storage->nodes[n].children[1] } );
+        fn( signal{ _storage->nodes[n].children[2] } );
       }
       else if constexpr ( detail::is_callable_with_index_v<Fn, signal, void> )
       {
-        fn( signal{_storage->nodes[n].children[0]}, 0 );
-        fn( signal{_storage->nodes[n].children[1]}, 1 );
-        fn( signal{_storage->nodes[n].children[2]}, 2 );
+        fn( signal{ _storage->nodes[n].children[0] }, 0 );
+        fn( signal{ _storage->nodes[n].children[1] }, 1 );
+        fn( signal{ _storage->nodes[n].children[2] }, 2 );
       }
     }
   }
@@ -473,7 +481,8 @@ public:
 
     assert( n != 0 && !is_ci( n ) );
 
-    if ( is_buf( n ) ) return is_complemented( _storage->nodes[n].children[0] ) ? !(*begin) : *begin;
+    if ( is_buf( n ) )
+      return is_complemented( _storage->nodes[n].children[0] ) ? !( *begin ) : *begin;
 
     auto const& c1 = _storage->nodes[n].children[0];
     auto const& c2 = _storage->nodes[n].children[1];
@@ -494,7 +503,8 @@ public:
 
     assert( n != 0 && !is_ci( n ) );
 
-    if ( is_buf( n ) ) return is_complemented( _storage->nodes[n].children[0] ) ? ~(*begin) : *begin;
+    if ( is_buf( n ) )
+      return is_complemented( _storage->nodes[n].children[0] ) ? ~( *begin ) : *begin;
 
     auto const& c1 = _storage->nodes[n].children[0];
     auto const& c2 = _storage->nodes[n].children[1];
@@ -540,24 +550,111 @@ public:
 
     result.resize( tt1.num_bits() );
     result._bits.back() =
-      ( ( c1.weight ? ~tt1._bits.back() : tt1._bits.back() ) & ( c2.weight ? ~tt2._bits.back() : tt2._bits.back() ) ) |
-      ( ( c1.weight ? ~tt1._bits.back() : tt1._bits.back() ) & ( c3.weight ? ~tt3._bits.back() : tt3._bits.back() ) ) |
-      ( ( c2.weight ? ~tt2._bits.back() : tt2._bits.back() ) & ( c3.weight ? ~tt3._bits.back() : tt3._bits.back() ) );
+        ( ( c1.weight ? ~tt1._bits.back() : tt1._bits.back() ) & ( c2.weight ? ~tt2._bits.back() : tt2._bits.back() ) ) |
+        ( ( c1.weight ? ~tt1._bits.back() : tt1._bits.back() ) & ( c3.weight ? ~tt3._bits.back() : tt3._bits.back() ) ) |
+        ( ( c2.weight ? ~tt2._bits.back() : tt2._bits.back() ) & ( c3.weight ? ~tt3._bits.back() : tt3._bits.back() ) );
     result.mask_bits();
   }
 #pragma endregion
 }; /* buffered_mig_network */
 
-template<>
-struct is_buffered_network_type<buffered_aig_network> : std::true_type {};
+class buffered_crossed_klut_network : public crossed_klut_network
+{
+public:
+  static constexpr bool is_buffered_network_type = true;
 
-template<>
-struct is_buffered_network_type<names_view<buffered_aig_network>> : std::true_type {};
+#pragma region Create unary functions
+  signal create_buf( signal const& a )
+  {
+    return _create_node( { a }, 2 );
+  }
 
-template<>
-struct is_buffered_network_type<buffered_mig_network> : std::true_type {};
+  void invert( node const& n )
+  {
+    assert( false );
+    (void)n;
+  }
+#pragma endregion
 
-template<>
-struct is_buffered_network_type<names_view<buffered_mig_network>> : std::true_type {};
+#pragma region Crossings
+
+  /*!
+   * \brief Merges two buffer nodes into a crossing cell
+   *
+   * After this operation, the network will not be in a topological order. Additionally, buf1 and buf2 will be dangling.
+   *
+   * \param buf1 First buffer node.
+   * \param buf2 Second buffer node.
+   * \return The created crossing cell.
+   */
+  node merge_into_crossing( node const& buf1, node const& buf2 )
+  {
+    assert( is_buf( buf1 ) && is_buf( buf2 ) );
+
+    auto const& in_buf1 = _storage->nodes[buf1].children[0];
+    auto const& in_buf2 = _storage->nodes[buf2].children[0];
+
+    node out_buf1{}, out_buf2{};
+    uint32_t fanin_index1 = std::numeric_limits<uint32_t>::max(), fanin_index2 = std::numeric_limits<uint32_t>::max();
+    foreach_node( [&]( node const& n ) {
+      foreach_fanin( n, [&]( auto const& f, auto i ) {
+        if ( auto const fin = get_node( f ); fin == buf1 )
+        {
+          out_buf1 = n;
+          fanin_index1 = i;
+        }
+        else if ( fin == buf2 )
+        {
+          out_buf2 = n;
+          fanin_index2 = i;
+        }
+      } );
+    } );
+    assert( out_buf1 != 0 && out_buf2 != 0 );
+    assert( fanin_index1 != std::numeric_limits<uint32_t>::max() && fanin_index2 != std::numeric_limits<uint32_t>::max() );
+
+    auto const [fout1, fout2] = create_crossing( in_buf1, in_buf2 );
+
+    _storage->nodes[out_buf1].children[fanin_index1] = fout1;
+    _storage->nodes[out_buf2].children[fanin_index2] = fout2;
+
+    /* decrease ref-count to children (was increased in `create_crossing`) */
+    _storage->nodes[in_buf1.index].data[0].h1--;
+    _storage->nodes[in_buf2.index].data[0].h1--;
+
+    _storage->nodes[buf1].children.clear();
+    _storage->nodes[buf2].children.clear();
+
+    return get_node( fout1 );
+  }
+
+#pragma endregion
+
+#pragma region Structural properties
+  // including buffers, splitters, and inverters
+  bool is_buf( node const& n ) const
+  {
+    return _storage->nodes[n].data[1].h1 == 2 || _storage->nodes[n].data[1].h1 == 3;
+  }
+
+  bool is_not( node const& n ) const
+  {
+    return _storage->nodes[n].data[1].h1 == 3;
+  }
+#pragma endregion
+
+#pragma region Node and signal iterators
+  /* TODO: Should crossings be included? */
+  template<typename Fn>
+  void foreach_gate( Fn&& fn ) const
+  {
+    auto r = range<uint64_t>( 2u, _storage->nodes.size() ); /* start from 2 to avoid constants */
+    detail::foreach_element_if(
+        r.begin(), r.end(),
+        [this]( auto n ) { return !is_ci( n ) && !is_buf( n ); },
+        fn );
+  }
+#pragma endregion
+}; /* buffered_crossed_klut_network */
 
 } // namespace mockturtle

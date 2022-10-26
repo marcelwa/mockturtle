@@ -1,5 +1,5 @@
 /* mockturtle: C++ logic network library
- * Copyright (C) 2018-2021  EPFL
+ * Copyright (C) 2018-2022  EPFL
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -27,10 +27,10 @@
   \file topo_view.hpp
   \brief Reimplements foreach_node to guarantee topological order
 
+  \author Alessandro Tempia Calvino
   \author Heinz Riener
   \author Mathias Soeken
   \author Max Austin
-  \author Alessandro Tempia Calvino
 */
 
 #pragma once
@@ -101,6 +101,7 @@ public:
   using storage = typename Ntk::storage;
   using node = typename Ntk::node;
   using signal = typename Ntk::signal;
+  static constexpr bool is_topologically_sorted = true;
 
   /*! \brief Default constructor.
    *
@@ -154,7 +155,7 @@ public:
   /*! \brief Reimplementation of `num_gates`. */
   auto num_gates() const
   {
-    uint32_t const offset = 1u + this->num_pis() + ( this->get_node( this->get_constant( true ) ) != this->get_node( this->get_constant( false ) ) ); 
+    uint32_t const offset = 1u + this->num_pis() + ( this->get_node( this->get_constant( true ) ) != this->get_node( this->get_constant( false ) ) );
     return static_cast<uint32_t>( topo_order.size() - offset );
   }
 
@@ -192,7 +193,7 @@ public:
   template<typename Fn>
   void foreach_gate( Fn&& fn ) const
   {
-    uint32_t const offset = 1u + this->num_pis() + ( this->get_node( this->get_constant( true ) ) != this->get_node( this->get_constant( false ) ) ); 
+    uint32_t const offset = 1u + this->num_pis() + ( this->get_node( this->get_constant( true ) ) != this->get_node( this->get_constant( false ) ) );
     detail::foreach_element( topo_order.begin() + offset,
                              topo_order.end(),
                              fn );
@@ -202,7 +203,7 @@ public:
   template<typename Fn>
   void foreach_gate_reverse( Fn&& fn ) const
   {
-    uint32_t const offset = 1u + this->num_pis() + ( this->get_node( this->get_constant( true ) ) != this->get_node( this->get_constant( false ) ) ); 
+    uint32_t const offset = 1u + this->num_pis() + ( this->get_node( this->get_constant( true ) ) != this->get_node( this->get_constant( false ) ) );
     detail::foreach_element( topo_order.rbegin(),
                              topo_order.rend() - offset,
                              fn );
@@ -315,9 +316,9 @@ public:
 };
 
 template<class T>
-topo_view(T const&) -> topo_view<T>;
+topo_view( T const& ) -> topo_view<T>;
 
 template<class T>
-topo_view(T const&, typename T::signal const&) -> topo_view<T>;
+topo_view( T const&, typename T::signal const& ) -> topo_view<T>;
 
 } // namespace mockturtle
