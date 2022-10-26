@@ -136,7 +136,7 @@ public:
   }
 
   /*! \brief Copy constructor. */
-  explicit rank_view( rank_view<Ntk, false> const& other )
+  rank_view( rank_view<Ntk, false> const& other )
       : Ntk{ other }, rank_pos{ other.rank_pos }, ranks{ other.ranks }, max_rank_width{ other.max_rank_width }
   {
     add_event = Ntk::events().register_add_event( [this]( auto const& n )
