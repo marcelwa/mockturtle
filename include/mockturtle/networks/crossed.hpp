@@ -286,15 +286,8 @@ public:
     std::copy( children.begin(), children.end(), std::back_inserter( node.children ) );
     node.data[1].h1 = literal;
 
-    const auto it = _storage->hash.find( node );
-    if ( it != _storage->hash.end() )
-    {
-      return it->second;
-    }
-
     const auto index = _storage->nodes.size();
     _storage->nodes.push_back( node );
-    _storage->hash[node] = index;
 
     /* increase ref-count to children */
     for ( auto c : children )
