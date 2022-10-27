@@ -102,6 +102,39 @@ TEST_CASE( "transform from klut to crossed_klut", "[crossed]" )
   CHECK( klut.size() == crossed.size() );
 }
 
+TEST_CASE( "node functions", "[crossed]" )
+{
+  crossed_klut_network tec{};
+
+  CHECK( mockturtle::has_is_and_v<crossed_klut_network> );
+  CHECK( mockturtle::has_is_or_v<crossed_klut_network> );
+  CHECK( mockturtle::has_is_xor_v<crossed_klut_network> );
+  CHECK( mockturtle::has_is_maj_v<crossed_klut_network> );
+  CHECK( mockturtle::has_is_xor3_v<crossed_klut_network> );
+
+  const auto x1 = tec.create_pi();
+  const auto x2 = tec.create_pi();
+  const auto x3 = tec.create_pi();
+
+  const auto and_signal = tec.create_and( x1, x2 );
+  const auto or_signal = tec.create_or( x1, x2 );
+  const auto xor2_signal = tec.create_xor( x1, x2 );
+  const auto maj_signal = tec.create_maj( x1, x2, x3 );
+  const auto xor3_signal = tec.create_xor3( x1, x2, x3 );
+
+  tec.create_po( and_signal );
+  tec.create_po( or_signal );
+  tec.create_po( xor2_signal );
+  tec.create_po( maj_signal );
+  tec.create_po( xor3_signal );
+
+  CHECK( tec.is_and( tec.get_node( and_signal ) ) );
+  CHECK( tec.is_or( tec.get_node( or_signal ) ) );
+  CHECK( tec.is_xor( tec.get_node( xor2_signal ) ) );
+  CHECK( tec.is_maj( tec.get_node( maj_signal ) ) );
+  CHECK( tec.is_xor3( tec.get_node( xor3_signal ) ) );
+}
+
 TEST_CASE( "merge buffers into a crossing cell", "[crossed]" )
 {
   buffered_crossed_klut_network klut;
