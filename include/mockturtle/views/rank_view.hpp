@@ -40,6 +40,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
+#include <utility>
 #include <vector>
 
 namespace mockturtle
@@ -222,7 +223,21 @@ public:
     // level must be less than the number of ranks
     if ( level < ranks.size() )
     {
-      detail::foreach_element( ranks[level].cbegin(), ranks[level].cend(), fn );
+      detail::foreach_element( ranks[level].cbegin(), ranks[level].cend(), std::forward<Fn>( fn ) );
+    }
+  }
+  /**
+   * \brief Applies a given function to each node in rank order.
+   *
+   * @tparam Fn Functor type.
+   * @param fn The function to apply.
+   */
+  template<typename Fn>
+  void foreach_node( Fn&& fn ) const
+  {
+    for ( auto l = 0; l < ranks.size(); ++l )
+    {
+      foreach_node_in_rank( l, std::forward<Fn>( fn ) );
     }
   }
   /**
@@ -269,7 +284,7 @@ private:
 
   void init_ranks() noexcept
   {
-    this->foreach_node( [this]( auto const& n ) {
+    depth_view<Ntk>::foreach_node( [this]( auto const& n ) {
                           if (!this->is_constant(n))
                           {
                             insert_in_rank(n);
