@@ -515,36 +515,6 @@ public:
     return _storage->nodes[n].data[0].h1;
   }
 
-  [[nodiscard]] bool is_not( const node& n ) const noexcept
-  {
-    return _storage->nodes[n].data[1].h1 == 3;
-  }
-
-  [[nodiscard]] bool is_and( const node& n ) const noexcept
-  {
-    return _storage->nodes[n].data[1].h1 == 4;
-  }
-
-  [[nodiscard]] bool is_or( const node& n ) const noexcept
-  {
-    return _storage->nodes[n].data[1].h1 == 6;
-  }
-
-  [[nodiscard]] bool is_xor( const node& n ) const noexcept
-  {
-    return _storage->nodes[n].data[1].h1 == 12;
-  }
-
-  [[nodiscard]] bool is_maj( const node& n ) const noexcept
-  {
-    return _storage->nodes[n].data[1].h1 == 14;
-  }
-
-  [[nodiscard]] bool is_xor3( const node& n ) const noexcept
-  {
-    return _storage->nodes[n].data[1].h1 == 18;
-  }
-
   bool is_function( node const& n ) const
   {
     return n > 1 && !is_ci( n ) && !is_crossing( n );
