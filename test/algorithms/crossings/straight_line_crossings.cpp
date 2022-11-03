@@ -7,7 +7,6 @@
 #include <mockturtle/networks/mig.hpp>
 #include <mockturtle/networks/xag.hpp>
 #include <mockturtle/networks/xmg.hpp>
-#include <mockturtle/views/depth_view.hpp>
 #include <mockturtle/views/rank_view.hpp>
 
 #include <type_traits>
@@ -18,7 +17,7 @@ TEMPLATE_TEST_CASE(
     "Empty network straight-line crossing number", "[crossings]",
     aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network )
 {
-  rank_view<depth_view<TestType>> const rank_ntk{};
+  rank_view<TestType> const rank_ntk{};
 
   CHECK( straight_line_crossings( rank_ntk ) == 0 );
 }
@@ -34,7 +33,7 @@ TEMPLATE_TEST_CASE(
   auto const a1 = ntk.create_and( x1, x2 );
   ntk.create_po( a1 );
 
-  rank_view<depth_view<TestType>> rank_ntk{ depth_view<TestType>{ ntk } };
+  rank_view<TestType> rank_ntk{ ntk };
 
   CHECK( straight_line_crossings( rank_ntk ) == 0 );
 
@@ -48,7 +47,7 @@ TEMPLATE_TEST_CASE(
     "Three layer lattice straight-line crossing number", "[crossings]",
     aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network )
 {
-  rank_view<depth_view<TestType>> rank_ntk{};
+  rank_view<TestType> rank_ntk{};
 
   // rank 1
   auto const x1 = rank_ntk.create_pi();
@@ -88,7 +87,7 @@ TEMPLATE_TEST_CASE(
     "Straight-line crossing number with fanins in different levels", "[crossings]",
     aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network )
 {
-  rank_view<depth_view<TestType>> rank_ntk{};
+  rank_view<TestType> rank_ntk{};
 
   SECTION( "Asymmetrically stacked nodes" )
   {

@@ -35,6 +35,7 @@
 #include "../networks/detail/foreach.hpp"
 #include "../traits.hpp"
 #include "../utils/node_map.hpp"
+#include "depth_view.hpp"
 
 #include <algorithm>
 #include <cassert>
@@ -87,16 +88,16 @@ class rank_view
 };
 
 template<class Ntk>
-class rank_view<Ntk, true> : public Ntk
+class rank_view<Ntk, true> : public depth_view<Ntk>
 {
 public:
-  rank_view( Ntk const& ntk ) : Ntk( ntk )
+  rank_view( Ntk const& ntk ) : depth_view<Ntk>( ntk )
   {
   }
 };
 
 template<class Ntk>
-class rank_view<Ntk, false> : public Ntk
+class rank_view<Ntk, false> : public depth_view<Ntk>
 {
 public:
   static constexpr bool is_topologically_sorted = true;
@@ -105,16 +106,13 @@ public:
   using signal = typename Ntk::signal;
 
   explicit rank_view()
-      : Ntk(), rank_pos{ *this }, ranks{}, max_rank_width{ 0 }
+      : depth_view<Ntk>(), rank_pos{ *this }, ranks{}, max_rank_width{ 0 }
   {
     static_assert( is_network_type_v<Ntk>, "Ntk is not a network type" );
     static_assert( has_foreach_node_v<Ntk>, "Ntk does not implement the foreach_node method" );
     static_assert( has_is_constant_v<Ntk>, "Ntk does not implement the is_constant method" );
-    static_assert( has_level_v<Ntk>, "Ntk does not implement the level method" );
-    static_assert( has_depth_v<Ntk>, "Ntk does not implement the depth method" );
 
-    add_event = Ntk::events().register_add_event( [this]( auto const& n )
-                                                  { on_add( n ); } );
+    add_event = Ntk::events().register_add_event( [this]( auto const& n ) { on_add( n ); } );
   }
 
   /*! \brief Standard constructor.
@@ -122,26 +120,22 @@ public:
    * \param ntk Base network
    */
   explicit rank_view( Ntk const& ntk )
-      : Ntk{ ntk }, rank_pos{ ntk }, ranks{ ntk.depth() + 1 }, max_rank_width{ 0 }
+      : depth_view<Ntk>{ ntk }, rank_pos{ ntk }, ranks{ this->depth() + 1 }, max_rank_width{ 0 }
   {
     static_assert( is_network_type_v<Ntk>, "Ntk is not a network type" );
     static_assert( has_foreach_node_v<Ntk>, "Ntk does not implement the foreach_node method" );
     static_assert( has_is_constant_v<Ntk>, "Ntk does not implement the is_constant method" );
-    static_assert( has_level_v<Ntk>, "Ntk does not implement the level method" );
-    static_assert( has_depth_v<Ntk>, "Ntk does not implement the depth method" );
 
     init_ranks();
 
-    add_event = Ntk::events().register_add_event( [this]( auto const& n )
-                                                  { on_add( n ); } );
+    add_event = Ntk::events().register_add_event( [this]( auto const& n ) { on_add( n ); } );
   }
 
   /*! \brief Copy constructor. */
   rank_view( rank_view<Ntk, false> const& other )
-      : Ntk{ other }, rank_pos{ other.rank_pos }, ranks{ other.ranks }, max_rank_width{ other.max_rank_width }
+      : depth_view<Ntk>( other ), rank_pos{ other.rank_pos }, ranks{ other.ranks }, max_rank_width{ other.max_rank_width }
   {
-    add_event = Ntk::events().register_add_event( [this]( auto const& n )
-                                                  { on_add( n ); } );
+    add_event = Ntk::events().register_add_event( [this]( auto const& n ) { on_add( n ); } );
   }
 
   rank_view<Ntk, false>& operator=( rank_view<Ntk, false> const& other )
@@ -159,8 +153,7 @@ public:
     max_rank_width = other.max_rank_width;
 
     /* register new event in the other network */
-    add_event = Ntk::events().register_add_event( [this]( auto const& n )
-                                                  { on_add( n ); } );
+    add_event = Ntk::events().register_add_event( [this]( auto const& n ) { on_add( n ); } );
 
     return *this;
   }
@@ -213,8 +206,7 @@ public:
     if ( level < ranks.size() )
     {
       std::sort( ranks[level].begin(), ranks[level].end(), cmp );
-      std::for_each( ranks[level].cbegin(), ranks[level].cend(), [this, i = 0u]( auto const& n ) mutable
-                     { rank_pos[n] = i++; } );
+      std::for_each( ranks[level].cbegin(), ranks[level].cend(), [this, i = 0u]( auto const& n ) mutable { rank_pos[n] = i++; } );
     }
   }
   /**
@@ -242,8 +234,8 @@ public:
    */
   signal create_pi()
   {
-    auto const n = Ntk::create_pi();
-    this->resize_levels(); // this line assumes a depth_view for Ntk
+    auto const n = depth_view<Ntk>::create_pi();
+    this->resize_levels();
     on_add( this->get_node( n ) );
     return n;
   }
@@ -277,8 +269,7 @@ private:
 
   void init_ranks() noexcept
   {
-    this->foreach_node( [this]( auto const& n )
-                        {
+    this->foreach_node( [this]( auto const& n ) {
                           if (!this->is_constant(n))
                           {
                             insert_in_rank(n);

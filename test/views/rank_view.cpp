@@ -7,7 +7,6 @@
 #include <mockturtle/networks/xag.hpp>
 #include <mockturtle/networks/xmg.hpp>
 #include <mockturtle/traits.hpp>
-#include <mockturtle/views/depth_view.hpp>
 #include <mockturtle/views/rank_view.hpp>
 
 #include <functional>
@@ -23,8 +22,9 @@ TEMPLATE_TEST_CASE( "traits", "[rank_view]", aig_network, mig_network, xag_netwo
   CHECK( !has_width_v<TestType> );
   CHECK( !has_sort_rank_v<TestType> );
   CHECK( !has_foreach_node_in_rank_v<TestType> );
+  CHECK( !is_topologically_sorted_v<TestType> );
 
-  using rank_ntk = rank_view<depth_view<TestType>>;
+  using rank_ntk = rank_view<TestType>;
 
   CHECK( is_network_type_v<rank_ntk> );
   CHECK( has_rank_position_v<rank_ntk> );
@@ -32,6 +32,7 @@ TEMPLATE_TEST_CASE( "traits", "[rank_view]", aig_network, mig_network, xag_netwo
   CHECK( has_width_v<rank_ntk> );
   CHECK( has_sort_rank_v<rank_ntk> );
   CHECK( has_foreach_node_in_rank_v<rank_ntk> );
+  CHECK( is_topologically_sorted_v<rank_ntk> );
 
   using rank_rank_ntk = rank_view<rank_ntk>;
 
@@ -41,6 +42,7 @@ TEMPLATE_TEST_CASE( "traits", "[rank_view]", aig_network, mig_network, xag_netwo
   CHECK( has_width_v<rank_rank_ntk> );
   CHECK( has_sort_rank_v<rank_rank_ntk> );
   CHECK( has_foreach_node_in_rank_v<rank_rank_ntk> );
+  CHECK( is_topologically_sorted_v<rank_rank_ntk> );
 }
 
 TEMPLATE_TEST_CASE( "compute ranks for a simple network", "[rank_view]", aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network )
@@ -79,8 +81,7 @@ TEMPLATE_TEST_CASE( "compute ranks for a simple network", "[rank_view]", aig_net
   CHECK( rank_ntk.at_rank_position( x2_lvl, x2_pos ) == rank_ntk.get_node( x2 ) );
   CHECK( rank_ntk.at_rank_position( a1_lvl, a1_pos ) == rank_ntk.get_node( a1 ) );
 
-  rank_ntk.foreach_node_in_rank( 0ul, [&]( auto const& n, auto i )
-                                 {
+  rank_ntk.foreach_node_in_rank( 0ul, [&]( auto const& n, auto i ) {
                                   switch (i)
                                   {
                                     case( 0ul ):
@@ -99,16 +100,14 @@ TEMPLATE_TEST_CASE( "compute ranks for a simple network", "[rank_view]", aig_net
                                     }
                                    } } );
 
-  rank_ntk.foreach_node_in_rank( 1ul, [&]( auto const& n )
-                                 { CHECK( n == rank_ntk.get_node( a1 ) ); } );
+  rank_ntk.foreach_node_in_rank( 1ul, [&]( auto const& n ) { CHECK( n == rank_ntk.get_node( a1 ) ); } );
 
   rank_ntk.swap( rank_ntk.get_node( x1 ), rank_ntk.get_node( x2 ) );
 
   CHECK( rank_ntk.at_rank_position( x1_lvl, x1_pos ) == rank_ntk.get_node( x2 ) );
   CHECK( rank_ntk.at_rank_position( x2_lvl, x2_pos ) == rank_ntk.get_node( x1 ) );
 
-  rank_ntk.foreach_node_in_rank( 0ul, [&]( auto const& n, auto i )
-                                 {
+  rank_ntk.foreach_node_in_rank( 0ul, [&]( auto const& n, auto i ) {
                                    switch (i)
                                    {
                                    case( 0ul ):
@@ -143,8 +142,7 @@ TEMPLATE_TEST_CASE( "compute ranks during node construction", "[rank_view]", aig
 
   CHECK( rank_ntk.width() == 3u );
 
-  rank_ntk.foreach_node_in_rank( 0ul, [&]( auto const& n, auto i )
-                                 {
+  rank_ntk.foreach_node_in_rank( 0ul, [&]( auto const& n, auto i ) {
                                    switch (i)
                                    {
                                    case( 0ul ):
@@ -168,8 +166,7 @@ TEMPLATE_TEST_CASE( "compute ranks during node construction", "[rank_view]", aig
                                    }
                                    } } );
 
-  rank_ntk.foreach_node_in_rank( 1ul, [&]( auto const& n, auto i )
-                                 {
+  rank_ntk.foreach_node_in_rank( 1ul, [&]( auto const& n, auto i ) {
                                    switch (i)
                                    {
                                    case( 0ul ):
@@ -200,16 +197,16 @@ TEMPLATE_TEST_CASE( "compute ranks during node construction", "[rank_view]", aig
 
 TEMPLATE_TEST_CASE( "compute ranks during node construction after copy ctor", "[rank_view]", aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network )
 {
-  rank_view<depth_view<TestType>> rank_ntk{};
+  TestType ntk{};
   {
-    auto tmp = std::make_unique<rank_view<depth_view<TestType>>>( rank_ntk );
-    CHECK( rank_ntk.events().on_add.size() == 4u );
+    auto tmp = std::make_unique<rank_view<TestType>>( ntk );
+    CHECK( ntk.events().on_add.size() == 2u );
 
     rank_view cpy_rank{ *tmp }; // copy ctor
-    CHECK( rank_ntk.events().on_add.size() == 6u );
+    CHECK( ntk.events().on_add.size() == 4u );
 
     tmp.reset(); // don't access tmp anymore after this line!
-    CHECK( rank_ntk.events().on_add.size() == 4u );
+    CHECK( ntk.events().on_add.size() == 2u );
 
     auto const a = cpy_rank.create_pi();
     auto const b = cpy_rank.create_pi();
@@ -227,18 +224,17 @@ TEMPLATE_TEST_CASE( "compute ranks during node construction after copy ctor", "[
     cpy_rank.create_po( t6 );
     CHECK( cpy_rank.width() == 4u );
 
-    CHECK( rank_ntk.events().on_add.size() == 4u );
+    CHECK( ntk.events().on_add.size() == 2u );
   }
 
-  CHECK( rank_ntk.events().on_add.size() == 2u );
+  CHECK( ntk.events().on_add.size() == 0u );
 }
 
 TEMPLATE_TEST_CASE( "compute ranks during node construction after copy assignment", "[rank_view]", aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network )
 {
-  depth_view<TestType> depth_ntk{};
-  rank_view rank_ntk{ depth_ntk };
+  rank_view<TestType> rank_ntk{};
   {
-    auto tmp = std::make_unique<rank_view<depth_view<TestType>>>( depth_ntk );
+    auto tmp = std::make_unique<rank_view<TestType>>( rank_ntk );
     rank_ntk = *tmp; // copy assignment
     tmp.reset();
   }
@@ -253,9 +249,9 @@ TEMPLATE_TEST_CASE( "compute ranks during node construction after copy assignmen
 
 TEMPLATE_TEST_CASE( "sort ranks according to a comparator", "[rank_view]", aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network )
 {
-  using Ntk = rank_view<depth_view<TestType>>;
+  using Ntk = rank_view<TestType>;
 
-  rank_view rank_ntk{ depth_view{ TestType{} } };
+  Ntk rank_ntk{ TestType{} };
 
   auto const a = rank_ntk.create_pi();
   auto const b = rank_ntk.create_pi();

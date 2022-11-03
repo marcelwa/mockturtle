@@ -101,6 +101,10 @@ template<class Ntk, class NodeCostFn>
 class depth_view<Ntk, NodeCostFn, true> : public Ntk
 {
 public:
+  depth_view() : Ntk()
+  {
+  }
+
   depth_view( Ntk const& ntk, depth_view_params const& ps = {} ) : Ntk( ntk )
   {
     (void)ps;

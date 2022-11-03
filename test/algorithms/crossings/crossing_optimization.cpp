@@ -8,7 +8,6 @@
 #include <mockturtle/networks/mig.hpp>
 #include <mockturtle/networks/xag.hpp>
 #include <mockturtle/networks/xmg.hpp>
-#include <mockturtle/views/depth_view.hpp>
 #include <mockturtle/views/fanout_view.hpp>
 #include <mockturtle/views/rank_view.hpp>
 
@@ -20,7 +19,7 @@ TEMPLATE_TEST_CASE(
     "Empty network crossing optimization", "[crossings]",
     aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network )
 {
-  rank_view<depth_view<fanout_view<TestType>>> rank_ntk{};
+  rank_view<fanout_view<TestType>> rank_ntk{};
 
   crossing_optimization( rank_ntk );
 
@@ -31,7 +30,7 @@ TEMPLATE_TEST_CASE(
     "Simple network crossing optimization", "[crossings]",
     aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network )
 {
-  rank_view<depth_view<fanout_view<TestType>>> rank_ntk{};
+  rank_view<fanout_view<TestType>> rank_ntk{};
 
   auto const x1 = rank_ntk.create_pi();
   auto const x2 = rank_ntk.create_pi();
@@ -47,7 +46,7 @@ TEMPLATE_TEST_CASE(
     "Three layer lattice crossing optimization", "[crossings]",
     aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network )
 {
-  rank_view<depth_view<fanout_view<TestType>>> rank_ntk{};
+  rank_view<fanout_view<TestType>> rank_ntk{};
 
   // rank 1
   auto const x1 = rank_ntk.create_pi();
@@ -93,7 +92,7 @@ TEMPLATE_TEST_CASE(
     "Crossing optimization with fanins in different levels", "[crossings]",
     aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network )
 {
-  rank_view<depth_view<fanout_view<TestType>>> rank_ntk{};
+  rank_view<fanout_view<TestType>> rank_ntk{};
 
   // rank 1
   auto const x1 = rank_ntk.create_pi();
@@ -132,7 +131,7 @@ TEMPLATE_TEST_CASE(
     "Crossing optimization with blocks", "[crossings]",
     klut_network, cover_network )
 {
-  rank_view<depth_view<fanout_view<TestType>>> rank_ntk{};
+  rank_view<fanout_view<TestType>> rank_ntk{};
 
   // rank 1
   auto const x1 = rank_ntk.create_pi(); // 2
