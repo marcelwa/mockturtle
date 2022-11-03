@@ -99,6 +99,7 @@ template<class Ntk>
 class rank_view<Ntk, false> : public Ntk
 {
 public:
+  static constexpr bool is_topologically_sorted = true;
   using storage = typename Ntk::storage;
   using node = typename Ntk::node;
   using signal = typename Ntk::signal;
