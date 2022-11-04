@@ -625,6 +625,12 @@ public:
     _storage->nodes[buf1].children.clear();
     _storage->nodes[buf2].children.clear();
 
+    /* kill both buffer nodes */
+    //    _storage->nodes[buf1].data[0].h1 = UINT32_C( 0x80000000 );
+    //    _storage->nodes[buf2].data[0].h1 = UINT32_C( 0x80000000 );
+    take_out_node( buf1 );
+    take_out_node( buf2 );
+
     return get_node( fout1 );
   }
 

@@ -224,7 +224,7 @@ public:
     // level must be less than the number of ranks
     if ( level < ranks.size() )
     {
-      detail::foreach_element( ranks[level].cbegin(), ranks[level].cend(), std::forward<Fn>( fn ) );
+      detail::foreach_element( ranks[level].cbegin(), ranks[level].cend(), [this, &fn]( const auto& n ) { if ( !this->is_dead(n) ) { std::invoke( fn, n ); } } );
     }
   }
   /**

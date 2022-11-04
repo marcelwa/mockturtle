@@ -1022,6 +1022,21 @@ template<class Ntk>
 inline constexpr bool has_width_v = has_width<Ntk>::value;
 #pragma endregion
 
+#pragma region has_swap
+template<class Ntk, class = void>
+struct has_swap : std::false_type
+{
+};
+
+template<class Ntk>
+struct has_swap<Ntk, std::void_t<decltype( std::declval<Ntk>().swap( std::declval<node<Ntk>>(), std::declval<node<Ntk>>() ) )>> : std::true_type
+{
+};
+
+template<class Ntk>
+inline constexpr bool has_swap_v = has_swap<Ntk>::value;
+#pragma endregion
+
 #pragma region has_sort_rank
 template<class Ntk, class = void>
 struct has_sort_rank : std::false_type

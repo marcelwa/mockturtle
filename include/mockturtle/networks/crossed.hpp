@@ -349,6 +349,32 @@ public:
   }
 #pragma endregion
 
+#pragma region Restructuring
+
+  void take_out_node( node const& n )
+  {
+    /* we cannot delete CIs or constants */
+    if ( n == 0 || is_ci( n ) )
+    {
+      return;
+    }
+
+    auto& nobj = _storage->nodes[n];
+    nobj.data[0].h1 = UINT32_C( 0x80000000 ); /* fanout size 0, but dead */
+
+    for ( auto const& fn : _events->on_delete )
+    {
+      ( *fn )( n );
+    }
+  }
+
+  inline bool is_dead( node const& n ) const
+  {
+    return ( _storage->nodes[n].data[0].h1 >> 31 ) & 1;
+  }
+
+#pragma endregion
+
 #pragma region Crossings
   /*! \brief Create a crossing cell
    *
@@ -593,29 +619,47 @@ public:
   std::vector<bool> get_fanin_negations( node const& n ) const
   {
     if ( is_crossing( n ) )
-      return {false, false};
+      return { false, false };
     if ( !is_function( n ) )
       return {};
     switch ( _storage->nodes[n].data[1].h1 )
     {
-      case 2: return {false}; // buf
-      case 3: return {true}; // not
-      case 4: return {false, false}; // and
-      case 5: return {true, true}; // x nand y = !x or !y
-      case 6: return {false, false}; // or
-      case 7: return {true, true}; // x nor y = !x and !y
-      case 8: return {true, false}; // !x and y
-      case 9: return {false, true}; // x or !y
-      case 10: return {false, true}; // x and !y
-      case 11: return {true, false}; // !x or y
-      case 12: return {false, false}; // xor
-      case 13: return {true, false}; // xnor (symmetric)
-      case 14: return {false, false, false}; // maj
-      case 15: return {true, true, true}; // minority
-      case 16: return {false, false, false}; // ite
-      case 17: return {false, true, true}; // !(x ? y : z) = x ? !y : !z
-      case 18: return {false, false, false}; // xor3
-      case 19: return {true, false, false}; // xnor3 (symmetric)
+    case 2:
+      return { false }; // buf
+    case 3:
+      return { true }; // not
+    case 4:
+      return { false, false }; // and
+    case 5:
+      return { true, true }; // x nand y = !x or !y
+    case 6:
+      return { false, false }; // or
+    case 7:
+      return { true, true }; // x nor y = !x and !y
+    case 8:
+      return { true, false }; // !x and y
+    case 9:
+      return { false, true }; // x or !y
+    case 10:
+      return { false, true }; // x and !y
+    case 11:
+      return { true, false }; // !x or y
+    case 12:
+      return { false, false }; // xor
+    case 13:
+      return { true, false }; // xnor (symmetric)
+    case 14:
+      return { false, false, false }; // maj
+    case 15:
+      return { true, true, true }; // minority
+    case 16:
+      return { false, false, false }; // ite
+    case 17:
+      return { false, true, true }; // !(x ? y : z) = x ? !y : !z
+    case 18:
+      return { false, false, false }; // xor3
+    case 19:
+      return { true, false, false }; // xnor3 (symmetric)
     }
     return {};
   }
