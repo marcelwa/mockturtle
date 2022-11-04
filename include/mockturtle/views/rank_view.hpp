@@ -40,6 +40,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstdint>
+#include <functional>
 #include <utility>
 #include <vector>
 
@@ -240,6 +241,22 @@ public:
     for ( auto l = 0; l < ranks.size(); ++l )
     {
       foreach_node_in_rank( l, std::forward<Fn>( fn ) );
+    }
+  }
+  /**
+   * \brief Applies a given function to each gate in rank order.
+   *
+   * This function overrides the `foreach_gate` method of the base class.
+   *
+   * @tparam Fn Functor type.
+   * @param fn The function to apply.
+   */
+  template<typename Fn>
+  void foreach_gate( Fn&& fn ) const
+  {
+    for ( auto l = 0; l < ranks.size(); ++l )
+    {
+      foreach_node_in_rank( l, [this, &fn]( const auto& n ) { if ( this->is_gate( n ) ) { std::invoke( fn, n ); } } );
     }
   }
   /**
