@@ -229,6 +229,8 @@ public:
   /**
    * \brief Applies a given function to each node in rank order.
    *
+   * This function overrides the `foreach_node` method of the base class.
+   *
    * @tparam Fn Functor type.
    * @param fn The function to apply.
    */
@@ -239,6 +241,24 @@ public:
     {
       foreach_node_in_rank( l, std::forward<Fn>( fn ) );
     }
+  }
+  /**
+   * \brief Applies a given function to each PI in rank order.
+   *
+   * This function overrides the `foreach_pi` method of the base class.
+   *
+   * @tparam Fn Functor type.
+   * @param fn The function to apply.
+   */
+  template<typename Fn>
+  void foreach_pi( Fn&& fn ) const
+  {
+    std::vector<node> pis{};
+    pis.reserve( this->num_pis() );
+
+    depth_view<Ntk>::foreach_pi( [&pis]( const auto& pi ) { pis.push_back( pi ); } );
+    std::sort( pis.begin(), pis.end(), [this]( const auto& n1, const auto& n2 ) { return rank_pos[n1] < rank_pos[n2]; } );
+    detail::foreach_element( pis.cbegin(), pis.cend(), std::forward<Fn>( fn ) );
   }
   /**
    * Overrides the base class method to also call the add_event on create_pi().
