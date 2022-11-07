@@ -251,7 +251,7 @@ TEMPLATE_TEST_CASE( "sort ranks according to a comparator", "[rank_view]", aig_n
 {
   using Ntk = rank_view<TestType>;
 
-  Ntk rank_ntk{ TestType{} };
+  Ntk rank_ntk{};
 
   auto const a = rank_ntk.create_pi();
   auto const b = rank_ntk.create_pi();
@@ -295,4 +295,40 @@ TEMPLATE_TEST_CASE( "sort ranks according to a comparator", "[rank_view]", aig_n
   CHECK( rank_ntk.at_rank_position( 0u, 0u ) == rank_ntk.get_node( a ) );
   CHECK( rank_ntk.at_rank_position( 0u, 1u ) == rank_ntk.get_node( b ) );
   CHECK( rank_ntk.at_rank_position( 0u, 2u ) == rank_ntk.get_node( c ) );
+}
+
+template<typename Ntk>
+void check_pi_permutation( Ntk const& ntk, std::vector<node<Ntk>> const& perm )
+{
+  REQUIRE( ntk.num_pis() == perm.size() );
+  ntk.foreach_pi( [&]( auto const& n, auto const i ) {
+    CHECK( n == perm[i] );
+  } );
+}
+
+TEMPLATE_TEST_CASE( "sort primary inputs", "[rank_view]", aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network )
+{
+  using Ntk = rank_view<TestType>;
+
+  Ntk rank_ntk{};
+
+  const auto a = rank_ntk.get_node( rank_ntk.create_pi() );
+  const auto b = rank_ntk.get_node( rank_ntk.create_pi() );
+  const auto c = rank_ntk.get_node( rank_ntk.create_pi() );
+  const auto d = rank_ntk.get_node( rank_ntk.create_pi() );
+  const auto e = rank_ntk.get_node( rank_ntk.create_pi() );
+  // order is a, b, c, d, e
+  check_pi_permutation( rank_ntk, { a, b, c, d, e } );
+
+  rank_ntk.swap( a, b );
+  // order is b, a, c, d, e
+  check_pi_permutation( rank_ntk, { b, a, c, d, e } );
+
+  rank_ntk.swap( c, d );
+  // order is b, a, d, c, e
+  check_pi_permutation( rank_ntk, { b, a, d, c, e } );
+
+  rank_ntk.swap( c, e );
+  // order is b, a, d, e, c
+  check_pi_permutation( rank_ntk, { b, a, d, e, c } );
 }

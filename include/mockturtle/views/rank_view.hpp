@@ -189,7 +189,8 @@ public:
   {
     assert( this->level( n1 ) == this->level( n2 ) && "nodes must be in the same rank" );
 
-    auto &pos1 = rank_pos[n1], pos2 = rank_pos[n2];
+    auto& pos1 = rank_pos[n1];
+    auto& pos2 = rank_pos[n2];
 
     std::swap( ranks[this->level( n1 )][pos1], ranks[this->level( n2 )][pos2] );
     std::swap( pos1, pos2 );
@@ -224,7 +225,8 @@ public:
     // level must be less than the number of ranks
     if ( level < ranks.size() )
     {
-      detail::foreach_element( ranks[level].cbegin(), ranks[level].cend(), [this, &fn]( const auto& n ) { if ( !this->is_dead(n) ) { std::invoke( fn, n ); } } );
+      detail::foreach_element_if(
+          ranks[level].cbegin(), ranks[level].cend(), [this]( const auto& n ) { return !this->is_dead( n ); }, std::forward<Fn>( fn ) );
     }
   }
   /**
@@ -244,6 +246,23 @@ public:
     }
   }
   /**
+   * \brief Applies a given function to each gate in the rank level in order.
+   *
+   * @tparam Fn Functor type.
+   * @param level The rank to apply fn to.
+   * @param fn The function to apply.
+   */
+  template<typename Fn>
+  void foreach_gate_in_rank( uint32_t const level, Fn&& fn ) const
+  {
+    // level must be less than the number of ranks
+    if ( level < ranks.size() )
+    {
+      detail::foreach_element_if(
+          ranks[level].cbegin(), ranks[level].cend(), [this]( const auto& n ) { return !this->is_dead( n ) && this->is_gate( n ); }, std::forward<Fn>( fn ) );
+    }
+  }
+  /**
    * \brief Applies a given function to each gate in rank order.
    *
    * This function overrides the `foreach_gate` method of the base class.
@@ -256,7 +275,7 @@ public:
   {
     for ( auto l = 0; l < ranks.size(); ++l )
     {
-      foreach_node_in_rank( l, [this, &fn]( const auto& n ) { if ( this->is_gate( n ) ) { std::invoke( fn, n ); } } );
+      foreach_gate_in_rank( l, std::forward<Fn>( fn ) );
     }
   }
   /**
