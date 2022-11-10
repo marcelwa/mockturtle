@@ -1,7 +1,9 @@
 #include <catch.hpp>
 
 #include <mockturtle/networks/aig.hpp>
+#include <mockturtle/networks/buffered.hpp>
 #include <mockturtle/networks/cover.hpp>
+#include <mockturtle/networks/crossed.hpp>
 #include <mockturtle/networks/klut.hpp>
 #include <mockturtle/networks/mig.hpp>
 #include <mockturtle/networks/xag.hpp>
@@ -14,7 +16,7 @@
 
 using namespace mockturtle;
 
-TEMPLATE_TEST_CASE( "traits", "[rank_view]", aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network )
+TEMPLATE_TEST_CASE( "traits", "[rank_view]", aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network, buffered_aig_network, buffered_mig_network, crossed_klut_network, buffered_crossed_klut_network )
 {
   CHECK( is_network_type_v<TestType> );
   CHECK( !has_rank_position_v<TestType> );
@@ -45,7 +47,7 @@ TEMPLATE_TEST_CASE( "traits", "[rank_view]", aig_network, mig_network, xag_netwo
   CHECK( is_topologically_sorted_v<rank_rank_ntk> );
 }
 
-TEMPLATE_TEST_CASE( "compute ranks for a simple network", "[rank_view]", aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network )
+TEMPLATE_TEST_CASE( "compute ranks for a simple network", "[rank_view]", aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network, buffered_aig_network, buffered_mig_network, crossed_klut_network, buffered_crossed_klut_network )
 {
   TestType ntk{};
   auto const x1 = ntk.create_pi();
@@ -127,7 +129,7 @@ TEMPLATE_TEST_CASE( "compute ranks for a simple network", "[rank_view]", aig_net
                                    } } );
 }
 
-TEMPLATE_TEST_CASE( "compute ranks during node construction", "[rank_view]", aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network )
+TEMPLATE_TEST_CASE( "compute ranks during node construction", "[rank_view]", aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network, buffered_aig_network, buffered_mig_network, crossed_klut_network, buffered_crossed_klut_network )
 {
   depth_view depth_ntk{ TestType{} };
   rank_view rank_ntk{ depth_ntk };
@@ -195,7 +197,7 @@ TEMPLATE_TEST_CASE( "compute ranks during node construction", "[rank_view]", aig
   CHECK( rank_ntk.width() == 4u );
 }
 
-TEMPLATE_TEST_CASE( "compute ranks during node construction after copy ctor", "[rank_view]", aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network )
+TEMPLATE_TEST_CASE( "compute ranks during node construction after copy ctor", "[rank_view]", aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network, buffered_aig_network, buffered_mig_network, crossed_klut_network, buffered_crossed_klut_network )
 {
   TestType ntk{};
   {
@@ -230,7 +232,7 @@ TEMPLATE_TEST_CASE( "compute ranks during node construction after copy ctor", "[
   CHECK( ntk.events().on_add.size() == 0u );
 }
 
-TEMPLATE_TEST_CASE( "compute ranks during node construction after copy assignment", "[rank_view]", aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network )
+TEMPLATE_TEST_CASE( "compute ranks during node construction after copy assignment", "[rank_view]", aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network, buffered_aig_network, buffered_mig_network, crossed_klut_network, buffered_crossed_klut_network )
 {
   rank_view<TestType> rank_ntk{};
   {
@@ -247,7 +249,7 @@ TEMPLATE_TEST_CASE( "compute ranks during node construction after copy assignmen
   CHECK( rank_ntk.width() == 3u );
 }
 
-TEMPLATE_TEST_CASE( "sort ranks according to a comparator", "[rank_view]", aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network )
+TEMPLATE_TEST_CASE( "sort ranks according to a comparator", "[rank_view]", aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network, buffered_aig_network, buffered_mig_network, crossed_klut_network, buffered_crossed_klut_network )
 {
   using Ntk = rank_view<TestType>;
 
@@ -306,7 +308,7 @@ void check_pi_permutation( Ntk const& ntk, std::vector<node<Ntk>> const& perm )
   } );
 }
 
-TEMPLATE_TEST_CASE( "sort primary inputs", "[rank_view]", aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network )
+TEMPLATE_TEST_CASE( "sort primary inputs", "[rank_view]", aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network, buffered_aig_network, buffered_mig_network, crossed_klut_network, buffered_crossed_klut_network )
 {
   using Ntk = rank_view<TestType>;
 
