@@ -62,6 +62,8 @@ TEMPLATE_TEST_CASE( "compute ranks for a simple network", "[rank_view]", aig_net
 
   REQUIRE( rank_ntk.size() == ntk.size() );
 
+  CHECK( rank_ntk.rank_width( 0 ) == 2 );
+  CHECK( rank_ntk.rank_width( 1 ) == 1 );
   CHECK( rank_ntk.width() == 2u );
 
   auto const x1_lvl = rank_ntk.level( rank_ntk.get_node( x1 ) );
@@ -109,6 +111,7 @@ TEMPLATE_TEST_CASE( "compute ranks for a simple network", "[rank_view]", aig_net
 
   CHECK( rank_ntk.at_rank_position( x1_lvl, x1_pos ) == rank_ntk.get_node( x2 ) );
   CHECK( rank_ntk.at_rank_position( x2_lvl, x2_pos ) == rank_ntk.get_node( x1 ) );
+  CHECK( rank_ntk.rank_width( 0 ) == 2 );
 
   rank_ntk.foreach_node_in_rank( 0ul, [&]( auto const& n, auto i ) {
     switch (i)
@@ -143,6 +146,9 @@ TEMPLATE_TEST_CASE( "compute ranks during node construction", "[rank_view]", aig
   auto const a2 = rank_ntk.create_and( a1, c );
   rank_ntk.create_po( a2 );
 
+  CHECK( rank_ntk.rank_width( 0 ) == 3 );
+  CHECK( rank_ntk.rank_width( 1 ) == 1 );
+  CHECK( rank_ntk.rank_width( 2 ) == 1 );
   CHECK( rank_ntk.width() == 3u );
 
   rank_ntk.foreach_node_in_rank( 0ul, [&]( auto const& n, auto i ) {

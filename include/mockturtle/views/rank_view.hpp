@@ -107,7 +107,7 @@ public:
   using signal = typename Ntk::signal;
 
   explicit rank_view()
-      : depth_view<Ntk>(), rank_pos{ *this }, ranks{}, max_rank_width{ 0 }
+      : depth_view<Ntk>(), rank_pos{ *this }, ranks{}, max_rank_width{ 0 }, add_event( Ntk::events().register_add_event( [this]( auto const& n ) { on_add( n ); } ) )
   {
     static_assert( is_network_type_v<Ntk>, "Ntk is not a network type" );
     static_assert( has_foreach_node_v<Ntk>, "Ntk does not implement the foreach_node method" );
@@ -115,8 +115,6 @@ public:
     static_assert( has_num_pis_v<Ntk>, "Ntk does not implement the num_pis method" );
     static_assert( has_is_ci_v<Ntk>, "Ntk does not implement the is_ci method" );
     static_assert( has_is_constant_v<Ntk>, "Ntk does not implement the is_constant method" );
-
-    add_event = Ntk::events().register_add_event( [this]( auto const& n ) { on_add( n ); } );
   }
 
   /*! \brief Standard constructor.
@@ -124,7 +122,7 @@ public:
    * \param ntk Base network
    */
   explicit rank_view( Ntk const& ntk )
-      : depth_view<Ntk>{ ntk }, rank_pos{ ntk }, ranks{ this->depth() + 1 }, max_rank_width{ 0 }
+      : depth_view<Ntk>{ ntk }, rank_pos{ ntk }, ranks{ this->depth() + 1 }, max_rank_width{ 0 }, add_event( Ntk::events().register_add_event( [this]( auto const& n ) { on_add( n ); } ) )
   {
     static_assert( is_network_type_v<Ntk>, "Ntk is not a network type" );
     static_assert( has_foreach_node_v<Ntk>, "Ntk does not implement the foreach_node method" );
@@ -134,15 +132,12 @@ public:
     static_assert( has_is_constant_v<Ntk>, "Ntk does not implement the is_constant method" );
 
     init_ranks();
-
-    add_event = Ntk::events().register_add_event( [this]( auto const& n ) { on_add( n ); } );
   }
 
   /*! \brief Copy constructor. */
   rank_view( rank_view<Ntk, false> const& other )
-      : depth_view<Ntk>( other ), rank_pos{ other.rank_pos }, ranks{ other.ranks }, max_rank_width{ other.max_rank_width }
+      : depth_view<Ntk>( other ), rank_pos{ other.rank_pos }, ranks{ other.ranks }, max_rank_width{ other.max_rank_width }, add_event( Ntk::events().register_add_event( [this]( auto const& n ) { on_add( n ); } ) )
   {
-    add_event = Ntk::events().register_add_event( [this]( auto const& n ) { on_add( n ); } );
   }
 
   rank_view<Ntk, false>& operator=( rank_view<Ntk, false> const& other )
@@ -151,8 +146,8 @@ public:
     Ntk::events().release_add_event( add_event );
 
     /* update the base class */
-    this->_storage = other._storage;
-    this->_events = other._events;
+    Ntk::_storage = other._storage;
+    Ntk::_events = other._events;
 
     /* copy */
     rank_pos = other.rank_pos;
@@ -200,9 +195,21 @@ public:
    *
    * @return Width of the widest rank in the network.
    */
-  uint32_t width() const noexcept
+  [[nodiscard]] uint32_t width() const noexcept
   {
     return max_rank_width;
+  }
+  /**
+   * \brief Returns the width of the given level's rank.
+   *
+   * @param level The level of the rank.
+   * @return Width of the given level's rank.
+   */
+  [[nodiscard]] uint32_t rank_width( const uint32_t level ) const noexcept
+  {
+    assert( level < ranks.size() && "level must be less than the number of ranks" );
+
+    return static_cast<uint32_t>( ranks[level].size() );
   }
   /**
    * \brief Swaps the positions of two nodes in the same rank.
@@ -213,6 +220,11 @@ public:
   void swap( node const& n1, node const& n2 ) noexcept
   {
     assert( this->level( n1 ) == this->level( n2 ) && "nodes must be in the same rank" );
+
+    if ( n1 == n2 )
+    {
+      return;
+    }
 
     auto& pos1 = rank_pos[n1];
     auto& pos2 = rank_pos[n2];
@@ -236,6 +248,22 @@ public:
       auto& rank = ranks[level];
 
       std::sort( rank.begin(), rank.end(), cmp );
+      std::for_each( rank.cbegin(), rank.cend(), [this, i = 0u]( auto const& n ) mutable { rank_pos[n] = i++; } );
+    }
+  }
+  /**
+   * \brief Shuffles the given rank.
+   *
+   * @param level The level of the rank to shuffle.
+   */
+  void shuffle_rank( uint32_t const level )
+  {
+    // level must be less than the number of ranks
+    if ( level < ranks.size() )
+    {
+      auto& rank = ranks[level];
+
+      std::shuffle( rank.begin(), rank.end(), std::mt19937{ std::random_device{}() } );
       std::for_each( rank.cbegin(), rank.cend(), [this, i = 0u]( auto const& n ) mutable { rank_pos[n] = i++; } );
     }
   }
