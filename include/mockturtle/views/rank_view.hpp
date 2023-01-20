@@ -122,7 +122,7 @@ public:
    * \param ntk Base network
    */
   explicit rank_view( Ntk const& ntk )
-      : depth_view<Ntk>{ ntk }, rank_pos{ ntk }, ranks{ this->depth() + 1 }, max_rank_width{ 0 }, add_event( Ntk::events().register_add_event( [this]( auto const& n ) { on_add( n ); } ) )
+      : depth_view<Ntk>( ntk ), rank_pos{ ntk }, ranks{ this->depth() + 1 }, max_rank_width{ 0 }, add_event( Ntk::events().register_add_event( [this]( auto const& n ) { on_add( n ); } ) )
   {
     static_assert( is_network_type_v<Ntk>, "Ntk is not a network type" );
     static_assert( has_foreach_node_v<Ntk>, "Ntk does not implement the foreach_node method" );
