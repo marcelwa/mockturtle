@@ -142,20 +142,22 @@ public:
 
   rank_view<Ntk, false>& operator=( rank_view<Ntk, false> const& other )
   {
-    /* delete the event of this network */
-    Ntk::events().release_add_event( add_event );
+    if ( this != &other )
+    {
+      /* delete the event of this network */
+      Ntk::events().release_add_event( add_event );
 
-    /* update the base class */
-    Ntk::_storage = other._storage;
-    Ntk::_events = other._events;
+      /* update the base class */
+      depth_view<Ntk>::operator=( other );
 
-    /* copy */
-    rank_pos = other.rank_pos;
-    ranks = other.ranks;
-    max_rank_width = other.max_rank_width;
+      /* copy */
+      rank_pos = other.rank_pos;
+      ranks = other.ranks;
+      max_rank_width = other.max_rank_width;
 
-    /* register new event in the other network */
-    add_event = Ntk::events().register_add_event( [this]( auto const& n ) { on_add( n ); } );
+      /* register new event in the other network */
+      add_event = Ntk::events().register_add_event( [this]( auto const& n ) { on_add( n ); } );
+    }
 
     return *this;
   }
