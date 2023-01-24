@@ -92,6 +92,8 @@ template<class Ntk>
 class rank_view<Ntk, true> : public depth_view<Ntk>
 {
 public:
+  rank_view() = default;
+
   rank_view( Ntk const& ntk ) : depth_view<Ntk>( ntk )
   {
   }

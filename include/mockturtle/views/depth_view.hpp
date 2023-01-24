@@ -30,6 +30,7 @@
   \author Heinz Riener
   \author Mathias Soeken
   \author Siang-Yun (Sonia) Lee
+  \author Marcel Walter
 */
 
 #pragma once
@@ -101,6 +102,8 @@ template<class Ntk, class NodeCostFn>
 class depth_view<Ntk, NodeCostFn, true> : public Ntk
 {
 public:
+  depth_view() = default;
+
   depth_view( Ntk const& ntk, depth_view_params const& ps = {} ) : Ntk( ntk )
   {
     (void)ps;
