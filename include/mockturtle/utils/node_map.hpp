@@ -30,6 +30,7 @@
   \author Heinz Riener
   \author Mathias Soeken
   \author Siang-Yun (Sonia) Lee
+  \author Marcel Walter
 */
 
 #pragma once
@@ -117,6 +118,14 @@ public:
   auto size() const
   {
     return data->size();
+  }
+
+  /*! \brief Deep copy. */
+  node_map<T, Ntk, container_type> copy() const
+  {
+    node_map<T, Ntk, container_type> copy{ *ntk };
+    *( copy.data ) = *data;
+    return copy;
   }
 
   /*! \brief Mutable access to value by node. */
