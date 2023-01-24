@@ -116,7 +116,7 @@ public:
   using signal = typename Ntk::signal;
 
   explicit depth_view( NodeCostFn const& cost_fn = {}, depth_view_params const& ps = {} )
-      : Ntk(), _ps( ps ), _levels( *this ), _crit_path( *this ), _cost_fn( cost_fn )
+      : Ntk(), _ps( ps ), _levels( *this ), _crit_path( *this ), _cost_fn( cost_fn ), add_event( Ntk::events().register_add_event( [this]( auto const& n ) { on_add( n ); } ) )
   {
     static_assert( is_network_type_v<Ntk>, "Ntk is not a network type" );
     static_assert( has_size_v<Ntk>, "Ntk does not implement the size method" );
@@ -126,8 +126,6 @@ public:
     static_assert( has_set_visited_v<Ntk>, "Ntk does not implement the set_visited method" );
     static_assert( has_foreach_po_v<Ntk>, "Ntk does not implement the foreach_po method" );
     static_assert( has_foreach_fanin_v<Ntk>, "Ntk does not implement the foreach_fanin method" );
-
-    add_event = Ntk::events().register_add_event( [this]( auto const& n ) { on_add( n ); } );
   }
 
   /*! \brief Standard constructor.
@@ -135,7 +133,7 @@ public:
    * \param ntk Base network
    */
   explicit depth_view( Ntk const& ntk, NodeCostFn const& cost_fn = {}, depth_view_params const& ps = {} )
-      : Ntk( ntk ), _ps( ps ), _levels( ntk ), _crit_path( ntk ), _cost_fn( cost_fn )
+      : Ntk( ntk ), _ps( ps ), _levels( ntk ), _crit_path( ntk ), _cost_fn( cost_fn ), add_event( Ntk::events().register_add_event( [this]( auto const& n ) { on_add( n ); } ) )
   {
     static_assert( is_network_type_v<Ntk>, "Ntk is not a network type" );
     static_assert( has_size_v<Ntk>, "Ntk does not implement the size method" );
@@ -147,35 +145,34 @@ public:
     static_assert( has_foreach_fanin_v<Ntk>, "Ntk does not implement the foreach_fanin method" );
 
     update_levels();
-
-    add_event = Ntk::events().register_add_event( [this]( auto const& n ) { on_add( n ); } );
   }
 
   /*! \brief Copy constructor. */
   explicit depth_view( depth_view<Ntk, NodeCostFn, false> const& other )
-      : Ntk( other ), _ps( other._ps ), _levels( other._levels ), _crit_path( other._crit_path ), _depth( other._depth ), _cost_fn( other._cost_fn )
+      : Ntk( other ), _ps( other._ps ), _levels( other._levels ), _crit_path( other._crit_path ), _depth( other._depth ), _cost_fn( other._cost_fn ), add_event( Ntk::events().register_add_event( [this]( auto const& n ) { on_add( n ); } ) )
+  {}
+
+  depth_view<Ntk, NodeCostFn>& operator=( depth_view<Ntk, NodeCostFn> const& other )
   {
-    add_event = Ntk::events().register_add_event( [this]( auto const& n ) { on_add( n ); } );
-  }
+    if ( this != &other )
+    {
+      /* delete the event of this network */
+      Ntk::events().release_add_event( add_event );
 
-  depth_view<Ntk, NodeCostFn, false>& operator=( depth_view<Ntk, NodeCostFn, false> const& other )
-  {
-    /* delete the event of this network */
-    Ntk::events().release_add_event( add_event );
+      /* update the base class */
+      this->_storage = other._storage;
+      this->_events = other._events;
 
-    /* update the base class */
-    this->_storage = other._storage;
-    this->_events = other._events;
+      /* copy */
+      _ps = other._ps;
+      _levels = other._levels;
+      _crit_path = other._crit_path;
+      _depth = other._depth;
+      _cost_fn = other._cost_fn;
 
-    /* copy */
-    _ps = other._ps;
-    _levels = other._levels;
-    _crit_path = other._crit_path;
-    _depth = other._depth;
-    _cost_fn = other._cost_fn;
-
-    /* register new event in the other network */
-    add_event = Ntk::events().register_add_event( [this]( auto const& n ) { on_add( n ); } );
+      /* register new event in the other network */
+      add_event = Ntk::events().register_add_event( [this]( auto const& n ) { on_add( n ); } );
+    }
 
     return *this;
   }

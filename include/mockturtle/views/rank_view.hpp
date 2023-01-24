@@ -107,7 +107,7 @@ public:
   using signal = typename Ntk::signal;
 
   explicit rank_view()
-      : depth_view<Ntk>(), rank_pos{ *this }, ranks{}, max_rank_width{ 0 }, add_event( Ntk::events().register_add_event( [this]( auto const& n ) { on_add( n ); } ) )
+      : depth_view<Ntk>(), rank_pos{ *this }, ranks{}, max_rank_width{ 0 }, add_event{ Ntk::events().register_add_event( [this]( auto const& n ) { on_add( n ); } ) }
   {
     static_assert( is_network_type_v<Ntk>, "Ntk is not a network type" );
     static_assert( has_foreach_node_v<Ntk>, "Ntk does not implement the foreach_node method" );
@@ -122,7 +122,7 @@ public:
    * \param ntk Base network
    */
   explicit rank_view( Ntk const& ntk )
-      : depth_view<Ntk>( ntk ), rank_pos{ ntk }, ranks{ this->depth() + 1 }, max_rank_width{ 0 }, add_event( Ntk::events().register_add_event( [this]( auto const& n ) { on_add( n ); } ) )
+      : depth_view<Ntk>( ntk ), rank_pos{ ntk }, ranks{ this->depth() + 1 }, max_rank_width{ 0 }, add_event{ Ntk::events().register_add_event( [this]( auto const& n ) { on_add( n ); } ) }
   {
     static_assert( is_network_type_v<Ntk>, "Ntk is not a network type" );
     static_assert( has_foreach_node_v<Ntk>, "Ntk does not implement the foreach_node method" );
@@ -135,12 +135,11 @@ public:
   }
 
   /*! \brief Copy constructor. */
-  rank_view( rank_view<Ntk, false> const& other )
-      : depth_view<Ntk>( other ), rank_pos{ other.rank_pos }, ranks{ other.ranks }, max_rank_width{ other.max_rank_width }, add_event( Ntk::events().register_add_event( [this]( auto const& n ) { on_add( n ); } ) )
-  {
-  }
+  rank_view( rank_view<Ntk> const& other )
+      : depth_view<Ntk>( other ), rank_pos{ other.rank_pos.copy() }, ranks{ other.ranks }, max_rank_width{ other.max_rank_width }, add_event{ Ntk::events().register_add_event( [this]( auto const& n ) { on_add( n ); } ) }
+  {}
 
-  rank_view<Ntk, false>& operator=( rank_view<Ntk, false> const& other )
+  rank_view<Ntk>& operator=( rank_view<Ntk> const& other )
   {
     if ( this != &other )
     {
@@ -151,7 +150,7 @@ public:
       depth_view<Ntk>::operator=( other );
 
       /* copy */
-      rank_pos = other.rank_pos;
+      rank_pos = other.rank_pos.copy();
       ranks = other.ranks;
       max_rank_width = other.max_rank_width;
 
@@ -298,7 +297,7 @@ public:
   template<typename Fn>
   void foreach_node( Fn&& fn ) const
   {
-    for ( auto l = 0; l < ranks.size(); ++l )
+    for ( auto l = 0ul; l < ranks.size(); ++l )
     {
       foreach_node_in_rank( l, std::forward<Fn>( fn ) );
     }
@@ -333,7 +332,7 @@ public:
   template<typename Fn>
   void foreach_gate( Fn&& fn ) const
   {
-    for ( auto l = 0; l < ranks.size(); ++l )
+    for ( auto l = 0ul; l < ranks.size(); ++l )
     {
       foreach_gate_in_rank( l, std::forward<Fn>( fn ) );
     }

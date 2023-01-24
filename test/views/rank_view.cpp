@@ -256,6 +256,86 @@ TEMPLATE_TEST_CASE( "compute ranks during node construction after copy assignmen
   CHECK( rank_ntk.width() == 3u );
 }
 
+TEMPLATE_TEST_CASE( "make sure copy assignment and copy ctor create distinct copies", "[rank_view]", aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network, buffered_aig_network, buffered_mig_network, crossed_klut_network, buffered_crossed_klut_network )
+{
+  TestType ntk{};
+
+  auto const x1 = ntk.create_pi();
+  auto const x2 = ntk.create_pi();
+  auto const x3 = ntk.create_pi();
+
+  auto const y1 = ntk.create_and( x1, x2 );
+  auto const y2 = ntk.create_and( x2, x3 );
+
+  auto const z1 = ntk.create_or( y1, y2 );
+
+  ntk.create_po( z1 );
+
+  rank_view<TestType> rank_ntk{ ntk };
+
+  // validate rank order
+  REQUIRE( rank_ntk.rank_position( rank_ntk.get_node( x1 ) ) == 0u );
+  REQUIRE( rank_ntk.rank_position( rank_ntk.get_node( x2 ) ) == 1u );
+  REQUIRE( rank_ntk.rank_position( rank_ntk.get_node( x3 ) ) == 2u );
+
+  REQUIRE( rank_ntk.rank_position( rank_ntk.get_node( y1 ) ) == 0u );
+  REQUIRE( rank_ntk.rank_position( rank_ntk.get_node( y2 ) ) == 1u );
+
+  REQUIRE( rank_ntk.rank_position( rank_ntk.get_node( z1 ) ) == 0u );
+
+  // copy ctor
+  rank_view copy_ctor_rank{ rank_ntk };
+
+  // validate rank order
+  REQUIRE( copy_ctor_rank.rank_position( copy_ctor_rank.get_node( x1 ) ) == 0u );
+  REQUIRE( copy_ctor_rank.rank_position( copy_ctor_rank.get_node( x2 ) ) == 1u );
+  REQUIRE( copy_ctor_rank.rank_position( copy_ctor_rank.get_node( x3 ) ) == 2u );
+
+  REQUIRE( copy_ctor_rank.rank_position( copy_ctor_rank.get_node( y1 ) ) == 0u );
+  REQUIRE( copy_ctor_rank.rank_position( copy_ctor_rank.get_node( y2 ) ) == 1u );
+
+  REQUIRE( copy_ctor_rank.rank_position( copy_ctor_rank.get_node( z1 ) ) == 0u );
+
+  // copy assignment operator
+  rank_view copy_assign_rank = rank_ntk;
+
+  // validate rank order
+  REQUIRE( copy_assign_rank.rank_position( copy_assign_rank.get_node( x1 ) ) == 0u );
+  REQUIRE( copy_assign_rank.rank_position( copy_assign_rank.get_node( x2 ) ) == 1u );
+  REQUIRE( copy_assign_rank.rank_position( copy_assign_rank.get_node( x3 ) ) == 2u );
+
+  REQUIRE( copy_assign_rank.rank_position( copy_assign_rank.get_node( y1 ) ) == 0u );
+  REQUIRE( copy_assign_rank.rank_position( copy_assign_rank.get_node( y2 ) ) == 1u );
+
+  REQUIRE( copy_assign_rank.rank_position( copy_assign_rank.get_node( z1 ) ) == 0u );
+
+  // swap nodes in the original rank network
+  rank_ntk.swap( rank_ntk.get_node( x1 ), rank_ntk.get_node( x2 ) );
+  rank_ntk.swap( rank_ntk.get_node( y1 ), rank_ntk.get_node( y2 ) );
+
+  // validate rank order
+  REQUIRE( rank_ntk.rank_position( rank_ntk.get_node( x1 ) ) == 1u );
+  REQUIRE( rank_ntk.rank_position( rank_ntk.get_node( x2 ) ) == 0u );
+
+  REQUIRE( rank_ntk.rank_position( rank_ntk.get_node( y1 ) ) == 1u );
+  REQUIRE( rank_ntk.rank_position( rank_ntk.get_node( y2 ) ) == 0u );
+
+  // check that copy ctor and copy assignment did not change
+  CHECK( copy_ctor_rank.rank_position( copy_ctor_rank.get_node( x1 ) ) == 0u );
+  CHECK( copy_ctor_rank.rank_position( copy_ctor_rank.get_node( x2 ) ) == 1u );
+  CHECK( copy_ctor_rank.rank_position( copy_ctor_rank.get_node( x3 ) ) == 2u );
+
+  CHECK( copy_ctor_rank.rank_position( copy_ctor_rank.get_node( y1 ) ) == 0u );
+  CHECK( copy_ctor_rank.rank_position( copy_ctor_rank.get_node( y2 ) ) == 1u );
+
+  CHECK( copy_assign_rank.rank_position( copy_assign_rank.get_node( x1 ) ) == 0u );
+  CHECK( copy_assign_rank.rank_position( copy_assign_rank.get_node( x2 ) ) == 1u );
+  CHECK( copy_assign_rank.rank_position( copy_assign_rank.get_node( x3 ) ) == 2u );
+
+  CHECK( copy_assign_rank.rank_position( copy_assign_rank.get_node( y1 ) ) == 0u );
+  CHECK( copy_assign_rank.rank_position( copy_assign_rank.get_node( y2 ) ) == 1u );
+}
+
 TEMPLATE_TEST_CASE( "sort ranks according to a comparator", "[rank_view]", aig_network, mig_network, xag_network, xmg_network, klut_network, cover_network, buffered_aig_network, buffered_mig_network, crossed_klut_network, buffered_crossed_klut_network )
 {
   using Ntk = rank_view<TestType>;
