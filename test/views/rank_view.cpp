@@ -284,7 +284,7 @@ TEMPLATE_TEST_CASE( "make sure copy assignment and copy ctor create distinct cop
   REQUIRE( rank_ntk.rank_position( rank_ntk.get_node( z1 ) ) == 0u );
 
   // copy ctor
-  rank_view copy_ctor_rank{ rank_ntk };
+  rank_view const copy_ctor_rank{ rank_ntk };
 
   // validate rank order
   REQUIRE( copy_ctor_rank.rank_position( copy_ctor_rank.get_node( x1 ) ) == 0u );
@@ -297,7 +297,7 @@ TEMPLATE_TEST_CASE( "make sure copy assignment and copy ctor create distinct cop
   REQUIRE( copy_ctor_rank.rank_position( copy_ctor_rank.get_node( z1 ) ) == 0u );
 
   // copy assignment operator
-  rank_view copy_assign_rank = rank_ntk;
+  rank_view const copy_assign_rank = rank_ntk;
 
   // validate rank order
   REQUIRE( copy_assign_rank.rank_position( copy_assign_rank.get_node( x1 ) ) == 0u );
