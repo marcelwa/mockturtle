@@ -24,11 +24,11 @@
  */
 
 /*!
-  \file experiments.hpp
-  \brief Framework for simple experimental evaluation
+ \file experiments.hpp
+ \brief Framework for simple experimental evaluation
 
-  \author Alessandro Tempia Calvino
-  \author Mathias Soeken
+ \author Alessandro Tempia Calvino
+ \author Mathias Soeken
 */
 
 #pragma once
@@ -522,7 +522,6 @@ std::string cell_libraries_path( std::string const& cell_library_name )
 #endif
 }
 
-
 template<class Ntk>
 inline bool abc_cec_impl( Ntk const& ntk, std::string const& benchmark_fullpath )
 {
@@ -608,3 +607,24 @@ inline bool abc_cec_mapped_cell( Ntk const& ntk, std::string const& benchmark, s
 }
 
 } // namespace experiments
+
+namespace fmt
+{
+
+template<>
+struct formatter<nlohmann::json>
+{
+  template<typename ParseContext>
+  constexpr auto parse( ParseContext& ctx )
+  {
+    return ctx.begin();
+  }
+
+  template<typename FormatContext>
+  auto format( const nlohmann::json& j, FormatContext& ctx )
+  {
+    return format_to( ctx.out(), "{}", j.dump() );
+  }
+};
+
+} // namespace fmt
