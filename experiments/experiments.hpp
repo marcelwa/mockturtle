@@ -40,6 +40,7 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <type_traits>
 #include <vector>
@@ -623,7 +624,7 @@ struct formatter<nlohmann::json>
   template<typename FormatContext>
   auto format( const nlohmann::json& j, FormatContext& ctx ) const
   {
-    return format_to( ctx.out(), "{}", j.dump() );
+    return format_to( ctx.out(), runtime( "{}" ), j.dump() );
   }
 };
 
