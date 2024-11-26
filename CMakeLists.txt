@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.8)
+cmake_minimum_required(VERSION 3.16...3.29)
 project(mockturtle LANGUAGES CXX)
 
 set(MOCKTURTLE_CXX_STANDARD "17" CACHE STRING "C++ standard")
