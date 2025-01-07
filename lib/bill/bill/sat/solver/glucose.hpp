@@ -1576,10 +1576,13 @@ static inline double Glucose::cpuTime(void) {
 
 #ifndef _WIN32
 
-static inline double Glucose::realTime() {
-  struct timeval tv;
-  gettimeofday(&tv, NULL);
-  return (double)tv.tv_sec + (double) tv.tv_usec / 1000000; }
+static inline double Glucose::realTime()
+{
+  const auto duration = std::chrono::system_clock::now().time_since_epoch();
+  const auto microsec = duration_cast<std::chrono::microseconds>(duration).count();
+  return static_cast<double>(microsec) / 1e6;
+}
+
 #endif
 #endif
 /***************************************************************************************[SolverTypes.h]
