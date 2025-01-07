@@ -1575,6 +1575,7 @@ static inline double Glucose::cpuTime(void) {
 #endif
 
 #ifndef _WIN32
+// Using std::chrono to avoid compilation errors with Apple Clang 15.0.7
 static inline double Glucose::realTime()
 {
   const auto duration = std::chrono::system_clock::now().time_since_epoch();
