@@ -1579,7 +1579,7 @@ static inline double Glucose::cpuTime(void) {
 static inline double Glucose::realTime()
 {
   const auto duration = std::chrono::system_clock::now().time_since_epoch();
-  const auto microsec = duration_cast<std::chrono::microseconds>(duration).count();
+  const auto microsec = std::chrono::duration_cast<std::chrono::microseconds>(duration).count();
   return static_cast<double>(microsec) / 1e6;
 }
 #endif
