@@ -11,6 +11,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
   cancel-in-progress: true
 
+defaults:
+  run:
+    shell: pwsh # use pwsh as directory handling does not seem to work with bash
+
 jobs:
   build_and_test:
     strategy:
