@@ -1,83 +1,81 @@
-name: MacOS CI
+name: macOS CI
 
 on:
   push:
     branches:
-    - master
+      - master
   pull_request:
-    branches:
-    - master
+  merge_group:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
 
 jobs:
-  build-gcc11:
-    name: GNU GCC 11
-    runs-on: macOS-latest
+  build_and_test:
+    strategy:
+      matrix:
+        os: [ macos-13, macos-14, macos-15 ]
+        compiler: [ g++-13, g++-14, clang++ ]
+        include:
+          - compiler: clang++
+            ccompiler: clang
+          - compiler: g++-13
+            ccompiler: gcc-13
+          - compiler: g++-14
+            ccompiler: gcc-14
+        exclude:
+          - os: macos-14
+            compiler: g++-13
+          - os: macos-14
+            compiler: g++-14
+          - os: macos-15
+            compiler: g++-13
+          - os: macos-15
+            compiler: g++-14
+
+    name: ${{matrix.os}} with ${{matrix.compiler}}
+    runs-on: ${{matrix.os}}
 
     steps:
-    - uses: actions/checkout@v1
-      with:
-        submodules: true
-    - name: Build mockturtle
-      run: |
-        mkdir build
-        cd build
-        cmake -DCMAKE_CXX_COMPILER=$(which g++-11) -DMOCKTURTLE_TEST=ON ..
-        make run_tests
-    - name: Run tests
-      run: |
-        cd build
-        ./test/run_tests "~[quality]"
-  build-gcc12:
-    name: GNU GCC 12
-    runs-on: macOS-latest
+      - name: Clone Repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
-    steps:
-    - uses: actions/checkout@v1
-      with:
-        submodules: true
-    - name: Build mockturtle
-      run: |
-        mkdir build
-        cd build
-        cmake -DCMAKE_CXX_COMPILER=$(which g++-12) -DMOCKTURTLE_TEST=ON ..
-        make run_tests
-    - name: Run tests
-      run: |
-        cd build
-        ./test/run_tests "~[quality]"
-  build-clang14:
-    name: Clang 14
-    runs-on: macOS-latest
+      - name: Install building tools
+        if: matrix.os != 'macos-13'
+        run: brew install autoconf
 
-    steps:
-    - uses: actions/checkout@v1
-      with:
-        submodules: true
-    - name: Build mockturtle
-      run: |
-        mkdir build
-        cd build
-        cmake -DCMAKE_CXX_COMPILER=/usr/bin/clang++ -DMOCKTURTLE_TEST=ON ..
-        make run_tests
-    - name: Run tests
-      run: |
-        cd build
-        ./test/run_tests "~[quality]"
-  build-clang15:
-    name: Clang 15
-    runs-on: macOS-latest
+      - name: Setup ccache
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: "${{matrix.os}}-${{matrix.compiler}}"
+          variant: ccache
+          save: true
+          max-size: 10G
 
-    steps:
-    - uses: actions/checkout@v1
-      with:
-        submodules: true
-    - name: Build mockturtle
-      run: |
-        mkdir build
-        cd build
-        cmake -DCMAKE_CXX_COMPILER=$(brew --prefix llvm@15)/bin/clang++ -DMOCKTURTLE_TEST=ON ..
-        make run_tests
-    - name: Run tests
-      run: |
-        cd build
-        ./test/run_tests "~[quality]"
+      - name: Create Build Environment
+        run: cmake -E make_directory ${{github.workspace}}/build
+
+      - name: Configure CMake
+        working-directory: ${{github.workspace}}/build
+        run: >
+          cmake ${{github.workspace}}
+          -DCMAKE_CXX_COMPILER=${{matrix.compiler}}
+          -DMOCKTURTLE_EXAMPLES=ON
+          -DMOCKTURTLE_EXPERIMENTS=ON
+          -DMOCKTURTLE_TEST=ON
+
+      - name: Build
+        working-directory: ${{github.workspace}}/build
+        run: cmake --build . -j4
+
+      - name: Run tests
+        working-directory: ${{github.workspace}}/build/test
+        run: |
+          ./run_tests "~[quality]"
