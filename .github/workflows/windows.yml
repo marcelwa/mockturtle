@@ -67,6 +67,6 @@ jobs:
         run: cmake --build . -j4
 
       - name: Run tests
-        working-directory: ${{github.workspace}}\build\test
+        shell: cmd
         run: |
-          .\run_tests.exe "~[quality]"
+          ${{github.workspace}}\build\test\Debug\run_tests "~[quality]"
