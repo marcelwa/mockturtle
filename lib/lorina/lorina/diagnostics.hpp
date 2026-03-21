@@ -33,11 +33,11 @@
 #pragma once
 
 #include <cassert>
+#include <fmt/color.h>
+#include <fmt/format.h>
 #include <iostream>
 #include <map>
 #include <vector>
-#include <fmt/format.h>
-#include <fmt/color.h>
 
 namespace lorina
 {
@@ -69,7 +69,7 @@ public:
    *
    * \param client Diagnostic client
    */
-  explicit diagnostic_engine( diagnostic_consumer *client );
+  explicit diagnostic_engine( diagnostic_consumer* client );
 
   /*! \brief Creates a diagnostic builder.
    *
@@ -84,6 +84,13 @@ public:
    */
   virtual inline void emit( diag_id id, std::vector<std::string> const& args = {} ) const;
 
+  /*! \brief Collect a single message.
+   *
+   * \param id ID of diagnostic
+   * \param args Arguments
+   */
+  virtual inline void collect_single_msg( diag_id id, std::vector<std::string> const& args = {} );
+
   /*! \brief Create custom diagnostic.
    *
    * \param level Severity level
@@ -93,6 +100,9 @@ public:
 
   /*! \brief Return the number of emitted diagnostics. */
   uint64_t get_num_diagnostics() const;
+
+  /*! \brief Return the collected messages. */
+  std::string get_all_messages();
 
 private:
   /*! \brief Emit diagnostics with static ID.
@@ -109,12 +119,20 @@ private:
    */
   void emit_custom_diagnostic( diag_id id, std::vector<std::string> const& args ) const;
 
+  /*! \brief Collect all ids and messages
+   *
+   * \param original_diag_ids_args All pairs of the (id, message)
+   */
+  void collect_messages( std::vector<std::pair<diag_id, std::vector<std::string>>> const& original_diag_ids_args );
+
 protected:
-  diagnostic_consumer *client_ = nullptr;  /*!< Diagnostic client. */
-  std::vector<desc_type> custom_diag_info; /*!< Custom diagnostics. */
+  diagnostic_consumer* client_ = nullptr;       /*!< Diagnostic client. */
+  std::vector<desc_type> custom_diag_info;      /*!< Custom diagnostics. */
   std::map<desc_type, diag_id> custom_diag_ids; /*!< Map from custom ID to diagnostic. */
-  mutable uint64_t num_diagnostics{0};
-}; /* diagnostic_engine */
+  mutable uint64_t num_diagnostics{ 0 };
+  std::vector<std::pair<diag_id, std::vector<std::string>>> original_diag_ids_args; /*!< Diagnostic id and corresponding collected args. */
+  std::string all_messages;                                                         /*!< Get all the messages. */
+};                                                                                  /* diagnostic_engine */
 
 /*! \brief A builder for diagnostics.
  *
@@ -142,10 +160,10 @@ public:
   inline diagnostic_builder& add_argument( std::string const& s );
 
 private:
-  diagnostic_engine& engine_; /*!< diagnostic engine */
-  diag_id id_; /*!< id of diagnostic */
+  diagnostic_engine& engine_;     /*!< diagnostic engine */
+  diag_id id_;                    /*!< id of diagnostic */
   std::vector<std::string> args_; /*!< arguments for diagnostic */
-}; /* diagnostic_builder */
+};                                /* diagnostic_builder */
 
 /*! \brief A consumer for diagnostics. */
 class diagnostic_consumer
@@ -185,48 +203,49 @@ public:
     case diagnostic_level::ignore:
       break;
     case diagnostic_level::note:
-      {
-        fmt::print( stdout, fmt::emphasis::bold | fg( fmt::terminal_color::bright_green ), "[i]" );
-        fmt::print( stdout, fmt::emphasis::bold | fg( fmt::color::white ), " {}\n", message );
-      }
-      break;
+    {
+      fmt::print( stdout, fmt::emphasis::bold | fg( fmt::terminal_color::bright_green ), "[i]" );
+      fmt::print( stdout, fmt::emphasis::bold | fg( fmt::color::white ), " {}\n", message );
+    }
+    break;
     case diagnostic_level::remark:
-      {
-        fmt::print( stderr, fmt::emphasis::bold | fg( fmt::terminal_color::bright_green ), "[I]" );
-        fmt::print( stderr, fmt::emphasis::bold | fg( fmt::color::white ), " {}\n", message );
-      }
-      break;
+    {
+      fmt::print( stderr, fmt::emphasis::bold | fg( fmt::terminal_color::bright_green ), "[I]" );
+      fmt::print( stderr, fmt::emphasis::bold | fg( fmt::color::white ), " {}\n", message );
+    }
+    break;
     case diagnostic_level::warning:
-      {
-        fmt::print( stderr, fmt::emphasis::bold | fg( fmt::terminal_color::bright_magenta ),"[w]" );
-        fmt::print( stderr, fmt::emphasis::bold | fg( fmt::color::white ), " {}\n", message );
-      }
-      break;
+    {
+      fmt::print( stderr, fmt::emphasis::bold | fg( fmt::terminal_color::bright_magenta ), "[w]" );
+      fmt::print( stderr, fmt::emphasis::bold | fg( fmt::color::white ), " {}\n", message );
+    }
+    break;
     case diagnostic_level::error:
-      {
-        fmt::print( stderr, fmt::emphasis::bold | fg( fmt::terminal_color::bright_red ), "[e]" );
-        fmt::print( stderr, fmt::emphasis::bold | fg( fmt::color::white ), " {}\n", message );
-      }
-      break;
+    {
+      fmt::print( stderr, fmt::emphasis::bold | fg( fmt::terminal_color::bright_red ), "[e]" );
+      fmt::print( stderr, fmt::emphasis::bold | fg( fmt::color::white ), " {}\n", message );
+    }
+    break;
     case diagnostic_level::fatal:
     default:
-      {
-        fmt::print( stderr, fmt::emphasis::bold | fg( fmt::terminal_color::bright_red ), "[E]" );
-        fmt::print( stderr, fmt::emphasis::bold | fg( fmt::color::white ), " {}\n", message );
-      }
-      break;
+    {
+      fmt::print( stderr, fmt::emphasis::bold | fg( fmt::terminal_color::bright_red ), "[E]" );
+      fmt::print( stderr, fmt::emphasis::bold | fg( fmt::color::white ), " {}\n", message );
+    }
+    break;
     }
   }
 };
 
 inline diagnostic_builder::diagnostic_builder( diagnostic_engine& engine, diag_id id )
-  : engine_( engine ), id_( id )
+    : engine_( engine ), id_( id )
 {
 }
 
 inline diagnostic_builder::~diagnostic_builder()
 {
   engine_.emit( id_, args_ );
+  engine_.collect_single_msg( id_, args_ );
 }
 
 inline diagnostic_builder& diagnostic_builder::add_argument( std::string const& s )
@@ -235,15 +254,15 @@ inline diagnostic_builder& diagnostic_builder::add_argument( std::string const& 
   return *this;
 }
 
-inline diagnostic_engine::diagnostic_engine( diagnostic_consumer *client )
-  : client_( client )
+inline diagnostic_engine::diagnostic_engine( diagnostic_consumer* client )
+    : client_( client )
 {
 }
 
 inline diag_id diagnostic_engine::create_id( diagnostic_level level, std::string const& message )
 {
-  desc_type desc{level, message};
-  diag_id id{diag_id( custom_diag_info.size() )};
+  desc_type desc{ level, message };
+  diag_id id{ diag_id( custom_diag_info.size() ) };
   custom_diag_ids.emplace( desc, id );
   custom_diag_info.emplace_back( desc );
   return diag_id( uint32_t( diag_id::NUM_STATIC_ERROR_IDS ) + uint32_t( id ) );
@@ -252,6 +271,13 @@ inline diag_id diagnostic_engine::create_id( diagnostic_level level, std::string
 inline uint64_t diagnostic_engine::get_num_diagnostics() const
 {
   return num_diagnostics;
+}
+
+inline std::string diagnostic_engine::get_all_messages()
+{
+  all_messages.clear();
+  collect_messages( original_diag_ids_args );
+  return all_messages;
 }
 
 inline diagnostic_builder diagnostic_engine::report( diag_id id )
@@ -317,6 +343,30 @@ inline void diagnostic_engine::emit( diag_id id, std::vector<std::string> const&
   else
   {
     emit_custom_diagnostic( id, args );
+  }
+}
+
+inline void diagnostic_engine::collect_single_msg( diag_id id, std::vector<std::string> const& args )
+{
+  std::pair<diag_id, std::vector<std::string>> collects_ids_args;
+  collects_ids_args.first = id;
+  collects_ids_args.second = args;
+  original_diag_ids_args.push_back( collects_ids_args );
+}
+
+inline void diagnostic_engine::collect_messages( std::vector<std::pair<diag_id, std::vector<std::string>>> const& original_diag_ids_args )
+{
+  for ( auto i = 0; i < original_diag_ids_args.size(); i++ )
+  {
+    auto const item = original_diag_ids_args[i];
+    lorina::diagnostic_level const level = lorina::diag_info[uint32_t( item.first )].first;
+    std::string message = lorina::diag_info[uint32_t( item.first )].second;
+    auto const args = item.second;
+    for ( auto j = 0; j < args.size(); j++ )
+    {
+      message = fmt::format( message, args[j] );
+    }
+    all_messages += ( message + "\n" );
   }
 }
 

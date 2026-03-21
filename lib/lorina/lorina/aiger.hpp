@@ -452,7 +452,7 @@ static std::regex fairness( R"(^f(\d+) (.*)$)" );
  */
 [[nodiscard]] inline bool check_index_validity( long index, uint64_t l_bound, uint64_t u_bound )
 {
-  if ( index < 0 || index < static_cast<long>(l_bound) || index > static_cast<long>(u_bound) )
+  if ( index < 0 || index < static_cast<long>( l_bound ) || index > static_cast<long>( u_bound ) )
   {
     return false;
   }
@@ -522,6 +522,10 @@ static std::regex fairness( R"(^f(\d+) (.*)$)" );
     const auto index = std::atol( line.c_str() );
     if ( !check_index_validity( index, 2, 2 * _m + 1 ) )
     {
+      if ( diag )
+      {
+        diag->report( diag_id::ERR_AIGER_INPUT ).add_argument( line );
+      }
       return return_code::parse_error;
     }
     reader.on_input( i, index );
@@ -543,13 +547,21 @@ static std::regex fairness( R"(^f(\d+) (.*)$)" );
     }
 
     const auto index = std::atol( std::string( tokens[0u] ).c_str() ) / 2u;
-    if ( !check_index_validity( index, 0, _m ) )
+    if ( !check_index_validity( index, _i + 1, _m + 1 ) )
     {
+      if ( diag )
+      {
+        diag->report( diag_id::ERR_AIGER_LATCH_DECLARATION ).add_argument( tokens[0u] );
+      }
       return return_code::parse_error;
     }
     const auto next_lit = std::atol( std::string( tokens[1u] ).c_str() );
-    if ( !check_index_validity( next_lit, 2, 2 * _m + 1 ) )
+    if ( !check_index_validity( next_lit, index, _m + 1 ) )
     {
+      if ( diag )
+      {
+        diag->report( diag_id::ERR_AIGER_LATCH_DECLARATION ).add_argument( tokens[1u] );
+      }
       return return_code::parse_error;
     }
 
@@ -574,8 +586,12 @@ static std::regex fairness( R"(^f(\d+) (.*)$)" );
   {
     detail::getline( in, line );
     const auto lit = std::atol( line.c_str() );
-    if ( !check_index_validity( lit, 2, 2 * _m + 1 ) )
+    if ( !check_index_validity( lit, 2 * ( _i + _l ), 2 * _m + 1 ) )
     {
+      if ( diag )
+      {
+        diag->report( diag_id::ERR_AIGER_LATCH_DECLARATION ).add_argument( line );
+      }
       return return_code::parse_error;
     }
     reader.on_output( i, lit );

@@ -9,7 +9,9 @@ enum class diag_id
 
   /* AIGER */
   ERR_AIGER_HEADER,
+  ERR_AIGER_INPUT,
   ERR_AIGER_LATCH_DECLARATION,
+  ERR_AIGER_OUTPUT,
   ERR_AIGER_AND_DECLARATION,
 
   /* BLIF */
@@ -56,7 +58,9 @@ static std::pair<diagnostic_level, std::string> const diag_info[] = {
 
   /* AIGER */
   { diagnostic_level::fatal, "could not parse AIGER header `{}`" },
+  { diagnostic_level::fatal, "could not parse AIGER input `{}`" },
   { diagnostic_level::fatal, "could not parse declaration of LATCH `{}`" },
+  { diagnostic_level::fatal, "could not parse AIGER output `{}`" },
   { diagnostic_level::fatal, "could not parse declaration of AND gate `{}`" },
 
   /* BLIF */
