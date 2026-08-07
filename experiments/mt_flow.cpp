@@ -1,0 +1,449 @@
+/* mt_flow: a harness-facing driver for the agentic-synthesis project.
+ *
+ * Usage:
+ *   mt_flow <input> <output.blif> [options]
+ *
+ *   <input>       .aig (binary AIGER), .v (structural Verilog) or .blif (k-LUT netlist,
+ *                 e.g. one of our champions -- it is decomposed back into an AIG).
+ *   <output.blif> a 6-LUT mapped BLIF, ready for the harness legality gate.
+ *
+ * Options:
+ *   --flow=<a,b,c>     comma-separated optimisation ops, applied left to right.
+ *   --rounds=N         repeat the whole flow N times (default 1); stops early on no gain.
+ *   --mig-flow=<...>   ops used inside the `mig` excursion op.
+ *   --k=N              LUT size for the final mapping (default 6).
+ *   --cut-limit=N      cut limit for the final mapping (default 8).
+ *   --map=area|delay|sop|esop|mffc   final mapping style (default area).
+ *   --relax=N          required-delay relaxation in % for the final mapping.
+ *   --max-pis=N        resubstitution window inputs (default 8).
+ *   --max-inserts=N    resubstitution insertion limit (default 2).
+ *   --max-divisors=N   resubstitution divisor limit (default 150).
+ *   --seed=N           random seed where applicable.
+ *   --verbose          progress on stderr.
+ *
+ * AIG ops:
+ *   b     aig_balance (level-minimising)
+ *   bf    aig_balance (fast, no level minimisation)
+ *   sopb  SOP rebalancing (depth-oriented, changes structure a lot)
+ *   rw    rewrite, AIG NPN-4 database
+ *   rwz   rewrite, zero-gain moves allowed (non-monotone)
+ *   rwd   rewrite with don't cares
+ *   rf    refactoring via SOP factoring
+ *   rfz   refactoring, zero-gain moves allowed
+ *   rs    aig_resubstitution
+ *   rs2   aig_resubstitution2 (with the resub engine of aig_resub.hpp)
+ *   rsim  sim_resubstitution (simulation-guided + SAT validation)
+ *   wr    window_rewriting
+ *   wrd   window_rewriting with don't cares
+ *   fr    functional_reduction (SAT-based structural hashing across the network)
+ *   mig   MIG excursion: AIG -> MIG, run --mig-flow, MIG -> AIG
+ *
+ * MIG ops (inside --mig-flow):
+ *   mrs   mig_resubstitution
+ *   mrs2  mig_resubstitution2
+ *   mad   mig_algebraic_depth_rewriting
+ *   mrw   rewrite with the MIG NPN-4 database
+ *   mmap  exact-library mapping onto MIG (area-oriented)
+ *   msopb SOP rebalancing on the MIG
+ */
+
+#include <algorithm>
+#include <chrono>
+#include <cstdint>
+#include <iostream>
+#include <limits>
+#include <sstream>
+#include <string>
+#include <vector>
+
+#include <fmt/format.h>
+#include <lorina/aiger.hpp>
+#include <lorina/blif.hpp>
+#include <lorina/verilog.hpp>
+
+#include <mockturtle/algorithms/aig_balancing.hpp>
+#include <mockturtle/algorithms/aig_resub.hpp>
+#include <mockturtle/algorithms/balancing.hpp>
+#include <mockturtle/algorithms/balancing/sop_balancing.hpp>
+#include <mockturtle/algorithms/cleanup.hpp>
+#include <mockturtle/algorithms/functional_reduction.hpp>
+#include <mockturtle/algorithms/klut_to_graph.hpp>
+#include <mockturtle/algorithms/lut_mapper.hpp>
+#include <mockturtle/algorithms/mapper.hpp>
+#include <mockturtle/algorithms/mig_algebraic_rewriting.hpp>
+#include <mockturtle/algorithms/mig_resub.hpp>
+#include <mockturtle/algorithms/node_resynthesis/mig_npn.hpp>
+#include <mockturtle/algorithms/node_resynthesis/sop_factoring.hpp>
+#include <mockturtle/algorithms/node_resynthesis/xag_npn.hpp>
+#include <mockturtle/algorithms/refactoring.hpp>
+#include <mockturtle/algorithms/resubstitution.hpp>
+#include <mockturtle/algorithms/rewrite.hpp>
+#include <mockturtle/algorithms/sim_resub.hpp>
+#include <mockturtle/algorithms/window_rewriting.hpp>
+#include <mockturtle/io/aiger_reader.hpp>
+#include <mockturtle/io/blif_reader.hpp>
+#include <mockturtle/io/verilog_reader.hpp>
+#include <mockturtle/io/write_blif.hpp>
+#include <mockturtle/networks/aig.hpp>
+#include <mockturtle/networks/klut.hpp>
+#include <mockturtle/networks/mig.hpp>
+#include <mockturtle/utils/tech_library.hpp>
+#include <mockturtle/views/depth_view.hpp>
+#include <mockturtle/views/fanout_view.hpp>
+#include <mockturtle/views/names_view.hpp>
+
+using namespace mockturtle;
+
+namespace
+{
+
+bool g_verbose = false;
+
+struct options
+{
+  std::string flow = "b,rs,rw,rf,rs,rw,rs";
+  std::string mig_flow = "mrw,mrs,mad";
+  uint32_t rounds = 1u;
+  uint32_t k = 6u;
+  uint32_t cut_limit = 8u;
+  std::string map_style = "area";
+  uint32_t relax = 0u;
+  uint32_t max_pis = 8u;
+  uint32_t max_inserts = 2u;
+  uint32_t max_divisors = 150u;
+  uint32_t seed = 1u;
+};
+
+std::vector<std::string> split( std::string const& s, char sep )
+{
+  std::vector<std::string> out;
+  std::string cur;
+  std::istringstream is( s );
+  while ( std::getline( is, cur, sep ) )
+  {
+    /* trim */
+    auto b = cur.find_first_not_of( " \t" );
+    if ( b == std::string::npos )
+      continue;
+    auto e = cur.find_last_not_of( " \t" );
+    out.push_back( cur.substr( b, e - b + 1 ) );
+  }
+  return out;
+}
+
+bool ends_with( std::string const& s, std::string const& suffix )
+{
+  return s.size() >= suffix.size() && s.compare( s.size() - suffix.size(), suffix.size(), suffix ) == 0;
+}
+
+void log( std::string const& msg )
+{
+  if ( g_verbose )
+    std::cerr << "[mt_flow] " << msg << "\n";
+}
+
+/* ---------------------------------------------------------------- reading */
+
+bool read_input( std::string const& path, aig_network& aig )
+{
+  if ( ends_with( path, ".aig" ) || ends_with( path, ".aag" ) )
+  {
+    return lorina::read_aiger( path, aiger_reader( aig ) ) == lorina::return_code::success;
+  }
+  if ( ends_with( path, ".v" ) || ends_with( path, ".verilog" ) )
+  {
+    return lorina::read_verilog( path, verilog_reader( aig ) ) == lorina::return_code::success;
+  }
+  if ( ends_with( path, ".blif" ) )
+  {
+    /* A mapped k-LUT netlist -- one of our own champions, say. Decompose it back into an
+     * AIG so that the AIG-level algorithms have something to work on. This is what makes
+     * `start_from: champion:size` usable from this driver. */
+    klut_network klut;
+    names_view<klut_network> named{ klut };
+    if ( lorina::read_blif( path, blif_reader( named ) ) != lorina::return_code::success )
+      return false;
+    aig = convert_klut_to_graph<aig_network>( named );
+    return true;
+  }
+  std::cerr << "[mt_flow] unrecognised input extension: " << path << "\n";
+  return false;
+}
+
+/* ------------------------------------------------------------- MIG domain */
+
+void run_mig_op( mig_network& mig, std::string const& op, options const& opts )
+{
+  if ( op == "mrs" || op == "mrs2" )
+  {
+    resubstitution_params ps;
+    ps.max_pis = opts.max_pis;
+    ps.max_inserts = opts.max_inserts;
+    ps.max_divisors = opts.max_divisors;
+    depth_view depth_mig{ mig };
+    fanout_view fanout_mig{ depth_mig };
+    if ( op == "mrs" )
+      mig_resubstitution( fanout_mig, ps );
+    else
+      mig_resubstitution2( fanout_mig, ps );
+    mig = cleanup_dangling( mig );
+  }
+  else if ( op == "mad" )
+  {
+    depth_view depth_mig{ mig };
+    mig_algebraic_depth_rewriting( depth_mig );
+    mig = cleanup_dangling( mig );
+  }
+  else if ( op == "mrw" || op == "mmap" )
+  {
+    mig_npn_resynthesis resyn{ true };
+    exact_library_params eps;
+    exact_library<mig_network> lib( resyn, eps );
+    if ( op == "mrw" )
+    {
+      rewrite_params ps;
+      rewrite( mig, lib, ps );
+      mig = cleanup_dangling( mig );
+    }
+    else
+    {
+      map_params mps;
+      mps.skip_delay_round = true;
+      mps.required_time = std::numeric_limits<double>::max();
+      mig = map( mig, lib, mps );
+    }
+  }
+  else if ( op == "msopb" )
+  {
+    sop_rebalancing<mig_network> balance_fn;
+    balancing_params bps;
+    bps.cut_enumeration_ps.cut_size = 6u;
+    mig = balancing( mig, { balance_fn }, bps );
+  }
+  else
+  {
+    std::cerr << "[mt_flow] unknown MIG op: " << op << "\n";
+  }
+}
+
+/* ------------------------------------------------------------- AIG domain */
+
+void run_aig_op( aig_network& aig, std::string const& op, options const& opts )
+{
+  auto const before = aig.num_gates();
+
+  if ( op == "b" || op == "bf" )
+  {
+    aig_balancing_params ps;
+    ps.minimize_levels = ( op == "b" );
+    aig_balance( aig, ps );
+  }
+  else if ( op == "sopb" )
+  {
+    sop_rebalancing<aig_network> balance_fn;
+    balancing_params bps;
+    bps.cut_enumeration_ps.cut_size = opts.k;
+    aig = balancing( aig, { balance_fn }, bps );
+  }
+  else if ( op == "rw" || op == "rwz" || op == "rwd" )
+  {
+    xag_npn_resynthesis<aig_network, aig_network, xag_npn_db_kind::aig_complete> resyn;
+    exact_library_params eps;
+    eps.compute_dc_classes = ( op == "rwd" );
+    exact_library<aig_network> lib( resyn, eps );
+    rewrite_params ps;
+    ps.allow_zero_gain = ( op == "rwz" );
+    ps.use_dont_cares = ( op == "rwd" );
+    rewrite( aig, lib, ps );
+    aig = cleanup_dangling( aig );
+  }
+  else if ( op == "rf" || op == "rfz" )
+  {
+    sop_factoring<aig_network> resyn;
+    refactoring_params ps;
+    ps.max_pis = 10u;
+    ps.allow_zero_gain = ( op == "rfz" );
+    refactoring( aig, resyn, ps );
+    aig = cleanup_dangling( aig );
+  }
+  else if ( op == "rs" || op == "rs2" )
+  {
+    resubstitution_params ps;
+    ps.max_pis = opts.max_pis;
+    ps.max_inserts = opts.max_inserts;
+    ps.max_divisors = opts.max_divisors;
+    depth_view depth_aig{ aig };
+    fanout_view fanout_aig{ depth_aig };
+    if ( op == "rs" )
+      aig_resubstitution( fanout_aig, ps );
+    else
+      aig_resubstitution2( fanout_aig, ps );
+    aig = cleanup_dangling( aig );
+  }
+  else if ( op == "rsim" )
+  {
+    resubstitution_params ps;
+    ps.max_pis = opts.max_pis;
+    ps.max_inserts = opts.max_inserts;
+    ps.max_divisors = std::numeric_limits<uint32_t>::max();
+    ps.random_seed = opts.seed;
+    sim_resubstitution( aig, ps );
+    aig = cleanup_dangling( aig );
+  }
+  else if ( op == "wr" || op == "wrd" )
+  {
+    window_rewriting_params ps;
+    ps.cut_size = 6u;
+    ps.num_levels = 5u;
+    ps.filter_cyclic_substitutions = true;
+    ps.use_dont_cares = ( op == "wrd" );
+    window_rewriting( aig, ps );
+    aig = cleanup_dangling( aig );
+  }
+  else if ( op == "fr" )
+  {
+    functional_reduction_params ps;
+    functional_reduction( aig, ps );
+    aig = cleanup_dangling( aig );
+  }
+  else if ( op == "mig" )
+  {
+    mig_network mig = cleanup_dangling<aig_network, mig_network>( aig );
+    for ( auto const& mop : split( opts.mig_flow, ',' ) )
+    {
+      auto const mbefore = mig.num_gates();
+      run_mig_op( mig, mop, opts );
+      log( fmt::format( "  mig/{}: {} -> {}", mop, mbefore, mig.num_gates() ) );
+    }
+    aig = cleanup_dangling<mig_network, aig_network>( mig );
+  }
+  else
+  {
+    std::cerr << "[mt_flow] unknown AIG op: " << op << "\n";
+    return;
+  }
+
+  log( fmt::format( "{}: {} -> {} gates", op, before, aig.num_gates() ) );
+}
+
+/* -------------------------------------------------------------- mapping */
+
+klut_network map_to_luts( aig_network const& aig, options const& opts )
+{
+  lut_map_params ps;
+  ps.cut_enumeration_ps.cut_size = opts.k;
+  ps.cut_enumeration_ps.cut_limit = opts.cut_limit;
+  ps.recompute_cuts = true;
+  ps.cut_expansion = true;
+  ps.relax_required = opts.relax;
+
+  if ( opts.map_style == "area" )
+  {
+    ps.area_oriented_mapping = true;
+  }
+  else if ( opts.map_style == "delay" )
+  {
+    ps.area_oriented_mapping = false;
+  }
+  else if ( opts.map_style == "sop" )
+  {
+    ps.area_oriented_mapping = false;
+    ps.sop_balancing = true;
+  }
+  else if ( opts.map_style == "esop" )
+  {
+    ps.area_oriented_mapping = false;
+    ps.esop_balancing = true;
+  }
+  else if ( opts.map_style == "mffc" )
+  {
+    ps.area_oriented_mapping = true;
+    ps.collapse_mffcs = true;
+  }
+  else
+  {
+    std::cerr << "[mt_flow] unknown --map style: " << opts.map_style << "\n";
+  }
+
+  return lut_map( aig, ps );
+}
+
+} // namespace
+
+int main( int argc, char** argv )
+{
+  if ( argc < 3 )
+  {
+    std::cerr << "usage: mt_flow <input.aig|.v|.blif> <output.blif> [--flow=...] "
+                 "[--rounds=N] [--k=N] [--cut-limit=N] [--map=area|delay|sop|esop|mffc] "
+                 "[--relax=N] [--max-pis=N] [--max-inserts=N] [--max-divisors=N] "
+                 "[--mig-flow=...] [--seed=N] [--verbose]\n";
+    return 1;
+  }
+
+  std::string const input = argv[1];
+  std::string const output = argv[2];
+  options opts;
+
+  for ( int i = 3; i < argc; ++i )
+  {
+    std::string a = argv[i];
+    auto const eq = a.find( '=' );
+    std::string key = eq == std::string::npos ? a : a.substr( 0, eq );
+    std::string val = eq == std::string::npos ? "" : a.substr( eq + 1 );
+
+    if ( key == "--flow" ) opts.flow = val;
+    else if ( key == "--mig-flow" ) opts.mig_flow = val;
+    else if ( key == "--rounds" ) opts.rounds = std::stoul( val );
+    else if ( key == "--k" ) opts.k = std::stoul( val );
+    else if ( key == "--cut-limit" ) opts.cut_limit = std::stoul( val );
+    else if ( key == "--map" ) opts.map_style = val;
+    else if ( key == "--relax" ) opts.relax = std::stoul( val );
+    else if ( key == "--max-pis" ) opts.max_pis = std::stoul( val );
+    else if ( key == "--max-inserts" ) opts.max_inserts = std::stoul( val );
+    else if ( key == "--max-divisors" ) opts.max_divisors = std::stoul( val );
+    else if ( key == "--seed" ) opts.seed = std::stoul( val );
+    else if ( key == "--verbose" ) g_verbose = true;
+    else
+    {
+      std::cerr << "[mt_flow] unknown option: " << a << "\n";
+      return 1;
+    }
+  }
+
+  aig_network aig;
+  if ( !read_input( input, aig ) )
+  {
+    std::cerr << "[mt_flow] could not read " << input << "\n";
+    return 1;
+  }
+
+  auto const t0 = std::chrono::steady_clock::now();
+  uint32_t const gates_in = aig.num_gates();
+  log( fmt::format( "read {}: {} PIs, {} POs, {} AND gates", input, aig.num_pis(),
+                    aig.num_pos(), gates_in ) );
+
+  auto const ops = split( opts.flow, ',' );
+  for ( uint32_t r = 0; r < opts.rounds; ++r )
+  {
+    uint32_t const before_round = aig.num_gates();
+    for ( auto const& op : ops )
+      run_aig_op( aig, op, opts );
+    aig = cleanup_dangling( aig );
+    log( fmt::format( "round {}: {} -> {} gates", r, before_round, aig.num_gates() ) );
+    if ( opts.rounds > 1 && aig.num_gates() >= before_round )
+      break; /* converged */
+  }
+
+  auto const klut = map_to_luts( aig, opts );
+  depth_view<klut_network> klut_d{ klut };
+
+  write_blif( klut, output );
+
+  auto const secs = std::chrono::duration<double>( std::chrono::steady_clock::now() - t0 ).count();
+  /* one machine-readable line on stdout so the harness log carries the numbers */
+  fmt::print( "mt_flow: aig_in={} aig_out={} luts={} lut_depth={} runtime={:.2f}\n",
+              gates_in, aig.num_gates(), klut.num_gates(), klut_d.depth(), secs );
+
+  return 0;
+}
