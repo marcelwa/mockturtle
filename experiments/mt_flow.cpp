@@ -21,6 +21,23 @@
  *   --seed=N           random seed where applicable.
  *   --verbose          progress on stderr.
  *
+ * Design-space exploration (explorer.hpp / deepsyn -- basin hopping):
+ *   --explore=<engine>   run an explorer before `--flow`. Engines:
+ *                          aig     deepsyn_aig      (needs ENABLE_ABC)
+ *                          migv1   deepsyn_mig_v1   (needs ENABLE_ABC)
+ *                          migv2   deepsyn_mig_v2   (needs ENABLE_ABC)
+ *                          migd    deepsyn_mig_depth(needs ENABLE_ABC)
+ *                          mig     explore_mig      (ABC-free)
+ *   --explore-cost=size|lut   cost the explorer minimises. `size` is the shipped
+ *                          behaviour (AND/MAJ gate count); `lut` is the *harness metric*
+ *                          -- the number of k-LUTs the final mapper would emit -- which
+ *                          makes the search optimise what we are actually scored on.
+ *   --restarts=N         explorer_params::num_restarts (default 1).
+ *   --explore-timeout=S  seconds per restart (default 300).
+ *   --steps=N            max steps per restart (default 100000).
+ *   --steps-no-impr=N    give up a restart after N steps without improvement.
+ *   --compress-per-step=N  compressing scripts per step (default 3).
+ *
  * AIG ops:
  *   b     aig_balance (level-minimising)
  *   bf    aig_balance (fast, no level minimisation)
@@ -66,6 +83,7 @@
 #include <mockturtle/algorithms/balancing.hpp>
 #include <mockturtle/algorithms/balancing/sop_balancing.hpp>
 #include <mockturtle/algorithms/cleanup.hpp>
+#include <mockturtle/algorithms/explorer.hpp>
 #include <mockturtle/algorithms/functional_reduction.hpp>
 #include <mockturtle/algorithms/klut_to_graph.hpp>
 #include <mockturtle/algorithms/lut_mapper.hpp>
@@ -112,6 +130,13 @@ struct options
   uint32_t max_inserts = 2u;
   uint32_t max_divisors = 150u;
   uint32_t seed = 1u;
+  std::string explore = "";
+  std::string explore_cost = "size";
+  uint32_t restarts = 1u;
+  uint32_t explore_timeout = 300u;
+  uint32_t steps = 100000u;
+  uint32_t steps_no_impr = 1000000u;
+  uint32_t compress_per_step = 3u;
 };
 
 std::vector<std::string> split( std::string const& s, char sep )
@@ -368,6 +393,93 @@ klut_network map_to_luts( aig_network const& aig, options const& opts )
   return lut_map( aig, ps );
 }
 
+/* ------------------------------------------------------ explorer cost fns */
+
+/* The harness counts a `.names` block as a LUT only when it has >= 2 inputs, and takes the
+ * depth over exactly those blocks. Buffers and inverters emitted by the mapper are free.
+ * Reproducing that rule here is what makes `--explore-cost=lut` optimise the scored metric
+ * rather than a proxy for it. */
+uint32_t count_scored_luts( klut_network const& klut )
+{
+  uint32_t n = 0u;
+  klut.foreach_gate( [&]( auto const& g ) {
+    if ( klut.fanin_size( g ) >= 2u )
+      ++n;
+  } );
+  return n;
+}
+
+/* Number of k-LUTs the final area-oriented mapper would emit for `ntk`. Defined for any
+ * network the explorer works on (AIG or MIG); `lut_map` needs a mutable network, so the
+ * candidate is cloned. */
+template<class Ntk>
+uint32_t mapped_lut_cost( Ntk const& ntk, options const& opts )
+{
+  Ntk copy = ntk.clone();
+  lut_map_params ps;
+  ps.cut_enumeration_ps.cut_size = opts.k;
+  ps.cut_enumeration_ps.cut_limit = opts.cut_limit;
+  ps.recompute_cuts = true;
+  ps.cut_expansion = true;
+  ps.area_oriented_mapping = true;
+  return count_scored_luts( lut_map( copy, ps ) );
+}
+
+template<class Ntk>
+cost_fn_t<Ntk> explorer_cost( options const& opts )
+{
+  if ( opts.explore_cost == "lut" )
+    return [&opts]( Ntk const& ntk ) { return mapped_lut_cost<Ntk>( ntk, opts ); };
+  return size_cost_fn<Ntk>;
+}
+
+/* Run one of the explorer.hpp basin-hopping engines on `aig`. Returns false if the
+ * requested engine is unavailable in this build. */
+bool run_explorer( aig_network& aig, options const& opts )
+{
+  explorer_params eps;
+  eps.num_restarts = opts.restarts;
+  eps.random_seed = opts.seed;
+  eps.max_steps = opts.steps;
+  eps.max_steps_no_impr = opts.steps_no_impr;
+  eps.compressing_scripts_per_step = opts.compress_per_step;
+  eps.timeout = opts.explore_timeout;
+  eps.verbose = g_verbose;
+
+  if ( opts.explore == "mig" )
+  {
+    mig_network mig = cleanup_dangling<aig_network, mig_network>( aig );
+    mig = explore_mig( mig, eps, explorer_cost<mig_network>( opts ) );
+    aig = cleanup_dangling<mig_network, aig_network>( mig );
+    return true;
+  }
+#ifdef ENABLE_ABC
+  if ( opts.explore == "aig" )
+  {
+    aig = deepsyn_aig( aig, eps, explorer_cost<aig_network>( opts ) );
+    return true;
+  }
+  if ( opts.explore == "migv1" || opts.explore == "migv2" || opts.explore == "migd" )
+  {
+    mig_network mig = cleanup_dangling<aig_network, mig_network>( aig );
+    if ( opts.explore == "migv1" )
+      mig = deepsyn_mig_v1( mig, eps, explorer_cost<mig_network>( opts ) );
+    else if ( opts.explore == "migv2" )
+      mig = deepsyn_mig_v2( mig, eps, explorer_cost<mig_network>( opts ) );
+    else
+      mig = deepsyn_mig_depth( mig, eps );
+    aig = cleanup_dangling<mig_network, aig_network>( mig );
+    return true;
+  }
+  std::cerr << "[mt_flow] unknown --explore engine: " << opts.explore << "\n";
+#else
+  std::cerr << "[mt_flow] --explore=" << opts.explore
+            << " needs an ENABLE_ABC build (lib/abc_static/libabc.a); only "
+               "--explore=mig is available here\n";
+#endif
+  return false;
+}
+
 } // namespace
 
 int main( int argc, char** argv )
@@ -377,7 +489,10 @@ int main( int argc, char** argv )
     std::cerr << "usage: mt_flow <input.aig|.v|.blif> <output.blif> [--flow=...] "
                  "[--rounds=N] [--k=N] [--cut-limit=N] [--map=area|delay|sop|esop|mffc] "
                  "[--relax=N] [--max-pis=N] [--max-inserts=N] [--max-divisors=N] "
-                 "[--mig-flow=...] [--seed=N] [--verbose]\n";
+                 "[--mig-flow=...] [--seed=N] [--verbose] "
+                 "[--explore=aig|mig|migv1|migv2|migd] [--explore-cost=size|lut] "
+                 "[--restarts=N] [--explore-timeout=SEC] [--steps=N] [--steps-no-impr=N] "
+                 "[--compress-per-step=N]\n";
     return 1;
   }
 
@@ -403,6 +518,13 @@ int main( int argc, char** argv )
     else if ( key == "--max-inserts" ) opts.max_inserts = std::stoul( val );
     else if ( key == "--max-divisors" ) opts.max_divisors = std::stoul( val );
     else if ( key == "--seed" ) opts.seed = std::stoul( val );
+    else if ( key == "--explore" ) opts.explore = val;
+    else if ( key == "--explore-cost" ) opts.explore_cost = val;
+    else if ( key == "--restarts" ) opts.restarts = std::stoul( val );
+    else if ( key == "--explore-timeout" ) opts.explore_timeout = std::stoul( val );
+    else if ( key == "--steps" ) opts.steps = std::stoul( val );
+    else if ( key == "--steps-no-impr" ) opts.steps_no_impr = std::stoul( val );
+    else if ( key == "--compress-per-step" ) opts.compress_per_step = std::stoul( val );
     else if ( key == "--verbose" ) g_verbose = true;
     else
     {
@@ -422,6 +544,16 @@ int main( int argc, char** argv )
   uint32_t const gates_in = aig.num_gates();
   log( fmt::format( "read {}: {} PIs, {} POs, {} AND gates", input, aig.num_pis(),
                     aig.num_pos(), gates_in ) );
+
+  if ( !opts.explore.empty() )
+  {
+    uint32_t const before = aig.num_gates();
+    if ( !run_explorer( aig, opts ) )
+      return 1;
+    aig = cleanup_dangling( aig );
+    log( fmt::format( "explore/{} (cost={}): {} -> {} gates", opts.explore, opts.explore_cost,
+                      before, aig.num_gates() ) );
+  }
 
   auto const ops = split( opts.flow, ',' );
   for ( uint32_t r = 0; r < opts.rounds; ++r )

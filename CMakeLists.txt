@@ -42,6 +42,12 @@ if (WIN32)
   set(MOCKTURTLE_ENABLE_NAUTY OFF)
 endif()
 
+if (MOCKTURTLE_ENABLE_ABC)
+  # include/CMakeLists.txt keys off the unprefixed name; forward it so that a single
+  # -DMOCKTURTLE_ENABLE_ABC=ON is enough (upstream silently builds ABC-free otherwise).
+  set(ENABLE_ABC ON)
+endif()
+
 add_subdirectory(include)
 add_subdirectory(lib)
 

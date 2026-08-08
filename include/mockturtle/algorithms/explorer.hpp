@@ -277,12 +277,13 @@ private:
   cost_fn_t<Ntk> cost;
 };
 
-mig_network explore_mig( mig_network const& ntk, explorer_params const ps = {} )
+mig_network explore_mig( mig_network const& ntk, explorer_params const ps = {},
+                         cost_fn_t<mig_network> const& cost_fn = size_cost_fn<mig_network> )
 {
   using Ntk = mig_network;
 
   explorer_stats st;
-  explorer<Ntk> expl( ps, st );
+  explorer<Ntk> expl( ps, st, cost_fn );
 
   expl.add_decompressing_script( []( Ntk& _ntk, uint32_t i, uint32_t rand ){
     //fmt::print( "decompressing with k-LUT mapping using random value {}, k = {}\n", rand, 2 + (rand % 5) );
@@ -363,12 +364,13 @@ mig_network explore_mig( mig_network const& ntk, explorer_params const ps = {} )
 }
 
 #ifdef ENABLE_ABC
-mig_network deepsyn_mig_v1( mig_network const& ntk, explorer_params const ps = {} )
+mig_network deepsyn_mig_v1( mig_network const& ntk, explorer_params const ps = {},
+                            cost_fn_t<mig_network> const& cost_fn = size_cost_fn<mig_network> )
 {
   using Ntk = mig_network;
 
   explorer_stats st;
-  explorer<Ntk> expl( ps, st );
+  explorer<Ntk> expl( ps, st, cost_fn );
 
   expl.add_decompressing_script( []( Ntk& _ntk, uint32_t i, uint32_t rand ){
     //fmt::print( "decompressing with &if using random value {}\n", rand );
@@ -493,12 +495,13 @@ mig_network deepsyn_mig_v1( mig_network const& ntk, explorer_params const ps = {
   return expl.run( ntk );
 }
 
-mig_network deepsyn_mig_v2( mig_network const& ntk, explorer_params const ps = {} )
+mig_network deepsyn_mig_v2( mig_network const& ntk, explorer_params const ps = {},
+                            cost_fn_t<mig_network> const& cost_fn = size_cost_fn<mig_network> )
 {
   using Ntk = mig_network;
 
   explorer_stats st;
-  explorer<Ntk> expl( ps, st );
+  explorer<Ntk> expl( ps, st, cost_fn );
 
   expl.add_decompressing_script( []( Ntk& _ntk, uint32_t i, uint32_t rand ){
     //fmt::print( "decompressing with &if using random value {}\n", rand );
@@ -737,12 +740,13 @@ mig_network deepsyn_mig_depth( mig_network const& ntk, explorer_params const ps 
   return expl.run( ntk );
 }
 
-aig_network deepsyn_aig( aig_network const& ntk, explorer_params const ps = {} )
+aig_network deepsyn_aig( aig_network const& ntk, explorer_params const ps = {},
+                         cost_fn_t<aig_network> const& cost_fn = size_cost_fn<aig_network> )
 {
   using Ntk = aig_network;
 
   explorer_stats st;
-  explorer<Ntk> expl( ps, st );
+  explorer<Ntk> expl( ps, st, cost_fn );
 
   expl.add_decompressing_script( []( Ntk& _ntk, uint32_t i, uint32_t rand ){
     std::string script = fmt::format(
