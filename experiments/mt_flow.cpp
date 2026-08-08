@@ -21,6 +21,20 @@
  *   --seed=N           random seed where applicable.
  *   --verbose          progress on stderr.
  *
+ * SPFD support selection (op `rspfd`, see resyn_engines/spfd_resyn.hpp):
+ *   --spfd-k=N         max support size K explored by the covering process (default 7).
+ *   --spfd-samples=N   supports sampled per resynthesis call, S (default 10). 0 = off.
+ *   --spfd-beta=F      inverse temperature on the normalised remaining-edge count;
+ *                      negative means pure greedy support selection (default 5).
+ *   --spfd-max-divs=N  divisors entering the covering process (default 150).
+ *   --spfd-onfail      only sample supports when the plain engine found nothing.
+ *
+ * XAG tail (the information-graph line of work is an XAIG method):
+ *   --xag-flow=<ops>   after the AIG flow, convert to an XAG, run these ops, and map to
+ *                      LUTs from the XAG. Ops: xrw (NPN-4 XAG rewrite), xrs
+ *                      (sim_resubstitution), xspfd (SPFD sim_resubstitution), xb (SOP
+ *                      rebalancing). `aig_out=` in the summary line then reports XAG nodes.
+ *
  * Design-space exploration (explorer.hpp / deepsyn -- basin hopping):
  *   --explore=<engine>   run an explorer before `--flow`. Engines:
  *                          aig     deepsyn_aig      (needs ENABLE_ABC)
@@ -50,6 +64,9 @@
  *   rs    aig_resubstitution
  *   rs2   aig_resubstitution2 (with the resub engine of aig_resub.hpp)
  *   rsim  sim_resubstitution (simulation-guided + SAT validation)
+ *   rspfd sim_resubstitution with SPFD/information-graph statistical support selection
+ *         (Costamagna et al.). Tuned by --spfd-*; --spfd-samples=0 makes it identical to
+ *         `rsim` and is the matched control arm.
  *   wr    window_rewriting
  *   wrd   window_rewriting with don't cares
  *   fr    functional_reduction (SAT-based structural hashing across the network)
@@ -97,6 +114,7 @@
 #include <mockturtle/algorithms/resubstitution.hpp>
 #include <mockturtle/algorithms/rewrite.hpp>
 #include <mockturtle/algorithms/sim_resub.hpp>
+#include <mockturtle/algorithms/spfd_resub.hpp>
 #include <mockturtle/algorithms/window_rewriting.hpp>
 #include <mockturtle/io/aiger_reader.hpp>
 #include <mockturtle/io/blif_reader.hpp>
@@ -137,6 +155,13 @@ struct options
   uint32_t steps = 100000u;
   uint32_t steps_no_impr = 1000000u;
   uint32_t compress_per_step = 3u;
+  uint32_t spfd_k = 7u;
+  uint32_t spfd_samples = 10u;
+  double spfd_beta = 5.0;
+  uint32_t spfd_max_divs = 150u;
+  bool spfd_onfail = false;
+  bool spfd_diagnose = false;
+  std::string xag_flow = "";
 };
 
 std::vector<std::string> split( std::string const& s, char sep )
@@ -315,6 +340,25 @@ void run_aig_op( aig_network& aig, std::string const& op, options const& opts )
     sim_resubstitution( aig, ps );
     aig = cleanup_dangling( aig );
   }
+  else if ( op == "rspfd" )
+  {
+    resubstitution_params ps;
+    ps.max_pis = opts.max_pis;
+    ps.max_inserts = opts.max_inserts;
+    ps.max_divisors = std::numeric_limits<uint32_t>::max();
+    ps.random_seed = opts.seed;
+    ps.verbose = g_verbose;
+    auto& sp = spfd_global_params();
+    sp.max_support = opts.spfd_k;
+    sp.num_supports = opts.spfd_samples;
+    sp.beta = opts.spfd_beta;
+    sp.max_divisors = opts.spfd_max_divs;
+    sp.seed = opts.seed;
+    sp.only_on_fail = opts.spfd_onfail;
+    sp.diagnose = opts.spfd_diagnose;
+    spfd_sim_resubstitution( aig, ps );
+    aig = cleanup_dangling( aig );
+  }
   else if ( op == "wr" || op == "wrd" )
   {
     window_rewriting_params ps;
@@ -351,9 +395,72 @@ void run_aig_op( aig_network& aig, std::string const& op, options const& opts )
   log( fmt::format( "{}: {} -> {} gates", op, before, aig.num_gates() ) );
 }
 
+/* ------------------------------------------------------------- XAG domain */
+
+/* The information-graph line of work operates on XAIGs, not AIGs, and that turns out to
+ * matter: the supports SPFD selection finds but unateness-based selection misses are
+ * XOR-dominant, and on an AIG an XOR costs three nodes, so those supports are never
+ * payable inside a resubstitution budget derived from a small MFFC. On an XAG they cost
+ * one node. `--xag-flow` runs the tail of the flow, and the LUT mapping, on an XAG. */
+void run_xag_op( xag_network& xag, std::string const& op, options const& opts )
+{
+  auto const before = xag.num_gates();
+
+  if ( op == "xrw" )
+  {
+    xag_npn_resynthesis<xag_network, xag_network, xag_npn_db_kind::xag_complete> resyn;
+    exact_library_params eps;
+    exact_library<xag_network> lib( resyn, eps );
+    rewrite_params ps;
+    rewrite( xag, lib, ps );
+    xag = cleanup_dangling( xag );
+  }
+  else if ( op == "xrs" || op == "xspfd" )
+  {
+    resubstitution_params ps;
+    ps.max_pis = opts.max_pis;
+    ps.max_inserts = opts.max_inserts;
+    ps.max_divisors = std::numeric_limits<uint32_t>::max();
+    ps.random_seed = opts.seed;
+    ps.verbose = g_verbose;
+    if ( op == "xrs" )
+    {
+      sim_resubstitution( xag, ps );
+    }
+    else
+    {
+      auto& sp = spfd_global_params();
+      sp.max_support = opts.spfd_k;
+      sp.num_supports = opts.spfd_samples;
+      sp.beta = opts.spfd_beta;
+      sp.max_divisors = opts.spfd_max_divs;
+      sp.seed = opts.seed;
+      sp.only_on_fail = opts.spfd_onfail;
+    sp.diagnose = opts.spfd_diagnose;
+      spfd_sim_resubstitution( xag, ps );
+    }
+    xag = cleanup_dangling( xag );
+  }
+  else if ( op == "xb" )
+  {
+    sop_rebalancing<xag_network> balance_fn;
+    balancing_params bps;
+    bps.cut_enumeration_ps.cut_size = opts.k;
+    xag = balancing( xag, { balance_fn }, bps );
+  }
+  else
+  {
+    std::cerr << "[mt_flow] unknown XAG op: " << op << "\n";
+    return;
+  }
+
+  log( fmt::format( "xag/{}: {} -> {} gates", op, before, xag.num_gates() ) );
+}
+
 /* -------------------------------------------------------------- mapping */
 
-klut_network map_to_luts( aig_network const& aig, options const& opts )
+template<class Ntk>
+klut_network map_to_luts( Ntk const& aig, options const& opts )
 {
   lut_map_params ps;
   ps.cut_enumeration_ps.cut_size = opts.k;
@@ -492,7 +599,8 @@ int main( int argc, char** argv )
                  "[--mig-flow=...] [--seed=N] [--verbose] "
                  "[--explore=aig|mig|migv1|migv2|migd] [--explore-cost=size|lut] "
                  "[--restarts=N] [--explore-timeout=SEC] [--steps=N] [--steps-no-impr=N] "
-                 "[--compress-per-step=N]\n";
+                 "[--compress-per-step=N] [--spfd-k=N] [--spfd-samples=N] [--spfd-beta=F] "
+                 "[--spfd-max-divs=N] [--spfd-onfail]\n";
     return 1;
   }
 
@@ -525,6 +633,13 @@ int main( int argc, char** argv )
     else if ( key == "--steps" ) opts.steps = std::stoul( val );
     else if ( key == "--steps-no-impr" ) opts.steps_no_impr = std::stoul( val );
     else if ( key == "--compress-per-step" ) opts.compress_per_step = std::stoul( val );
+    else if ( key == "--spfd-k" ) opts.spfd_k = std::stoul( val );
+    else if ( key == "--spfd-samples" ) opts.spfd_samples = std::stoul( val );
+    else if ( key == "--spfd-beta" ) opts.spfd_beta = std::stod( val );
+    else if ( key == "--spfd-max-divs" ) opts.spfd_max_divs = std::stoul( val );
+    else if ( key == "--spfd-onfail" ) opts.spfd_onfail = true;
+    else if ( key == "--spfd-diagnose" ) opts.spfd_diagnose = true;
+    else if ( key == "--xag-flow" ) opts.xag_flow = val;
     else if ( key == "--verbose" ) g_verbose = true;
     else
     {
@@ -567,7 +682,20 @@ int main( int argc, char** argv )
       break; /* converged */
   }
 
-  auto const klut = map_to_luts( aig, opts );
+  uint32_t gates_out = aig.num_gates();
+  klut_network klut;
+  if ( opts.xag_flow.empty() )
+  {
+    klut = map_to_luts( aig, opts );
+  }
+  else
+  {
+    xag_network xag = cleanup_dangling<aig_network, xag_network>( aig );
+    for ( auto const& xop : split( opts.xag_flow, ',' ) )
+      run_xag_op( xag, xop, opts );
+    gates_out = xag.num_gates();
+    klut = map_to_luts( xag, opts );
+  }
   depth_view<klut_network> klut_d{ klut };
 
   write_blif( klut, output );
@@ -575,7 +703,7 @@ int main( int argc, char** argv )
   auto const secs = std::chrono::duration<double>( std::chrono::steady_clock::now() - t0 ).count();
   /* one machine-readable line on stdout so the harness log carries the numbers */
   fmt::print( "mt_flow: aig_in={} aig_out={} luts={} lut_depth={} runtime={:.2f}\n",
-              gates_in, aig.num_gates(), klut.num_gates(), klut_d.depth(), secs );
+              gates_in, gates_out, klut.num_gates(), klut_d.depth(), secs );
 
   return 0;
 }
