@@ -78,6 +78,47 @@ private:
   std::vector<std::vector<bool>> _stimulus;
 };
 
+/*! \brief The result of simulating a sequential network.
+ *
+ * Both traces are indexed by clock cycle first.  `outputs[cycle][index]` is the
+ * value primary output `index` took in that cycle, and `states[cycle][index]` the
+ * value register `index` held while that cycle was evaluated.
+ *
+ * `states` is one entry longer than `outputs`: simulating `n` cycles crosses
+ * `n + 1` state boundaries.  `states.front()` is the reset state the run started
+ * from and `states.back()` the state it ended in, so a run of zero cycles still
+ * reports the reset state and nothing else.
+ */
+template<class SimulationType>
+struct simulate_sequential_result
+{
+  /*! \brief Primary output values, one vector per clock cycle. */
+  std::vector<std::vector<SimulationType>> outputs;
+
+  /*! \brief Register values, one vector per state boundary. */
+  std::vector<std::vector<SimulationType>> states;
+
+  /*! \brief Number of clock cycles simulated. */
+  uint32_t num_cycles() const
+  {
+    return static_cast<uint32_t>( outputs.size() );
+  }
+
+  /*! \brief The state the registers were reset to. */
+  std::vector<SimulationType> const& reset_state() const
+  {
+    assert( !states.empty() && "the state trace always holds the reset state" );
+    return states.front();
+  }
+
+  /*! \brief The state the registers held after the last cycle. */
+  std::vector<SimulationType> const& final_state() const
+  {
+    assert( !states.empty() && "the state trace always holds the reset state" );
+    return states.back();
+  }
+};
+
 /*! \brief Parameters for `simulate_sequential`. */
 struct simulate_sequential_params
 {
@@ -168,22 +209,25 @@ void simulate_gates( Ntk const& ntk, node_map<SimulationType, Ntk>& node_to_valu
 
       sequential<aig_network> aig = ...; // a 4-bit LFSR, say
 
-      auto const trace = simulate_sequential<bool>( aig, 15, default_simulator<bool>( {} ) );
+      auto const result = simulate_sequential<bool>( aig, 15, default_simulator<bool>( std::vector<bool>{} ) );
 
-      for ( auto const& outputs : trace )
+      for ( auto const& outputs : result.outputs )
       {
         std::cout << outputs[0];
       }
+
+      // where it ended up
+      auto const& state = result.final_state();
    \endverbatim
  *
  * \param ntk The sequential network to simulate
  * \param num_cycles Number of clock cycles to run
  * \param sim The simulator
  * \param ps Parameters
- * \return The primary output values, one vector per clock cycle
+ * \return The primary output values and the register values, per clock cycle
  */
 template<class SimulationType, class Ntk, class Simulator = default_simulator<SimulationType>>
-std::vector<std::vector<SimulationType>> simulate_sequential( Ntk const& ntk, uint32_t num_cycles, Simulator const& sim = Simulator(), simulate_sequential_params const& ps = {} )
+simulate_sequential_result<SimulationType> simulate_sequential( Ntk const& ntk, uint32_t num_cycles, Simulator const& sim = Simulator(), simulate_sequential_params const& ps = {} )
 {
   static_assert( is_network_type_v<Ntk>, "Ntk is not a network type" );
   static_assert( has_num_registers_v<Ntk>, "Ntk does not implement the num_registers method" );
@@ -210,8 +254,10 @@ std::vector<std::vector<SimulationType>> simulate_sequential( Ntk const& ntk, ui
     state[i] = sim.compute_constant( value );
   }
 
-  std::vector<std::vector<SimulationType>> trace;
-  trace.reserve( num_cycles );
+  simulate_sequential_result<SimulationType> result;
+  result.outputs.reserve( num_cycles );
+  result.states.reserve( num_cycles + 1u );
+  result.states.push_back( state );
 
   node_map<SimulationType, Ntk> node_to_value( ntk );
 
@@ -251,7 +297,7 @@ std::vector<std::vector<SimulationType>> simulate_sequential( Ntk const& ntk, ui
     ntk.foreach_po( [&]( auto const& f, auto i ) {
       outputs[i] = evaluate( f );
     } );
-    trace.push_back( std::move( outputs ) );
+    result.outputs.push_back( std::move( outputs ) );
 
     /* latch the register inputs for the next cycle */
     std::vector<SimulationType> next( ntk.num_registers() );
@@ -259,9 +305,10 @@ std::vector<std::vector<SimulationType>> simulate_sequential( Ntk const& ntk, ui
       next[i] = evaluate( f );
     } );
     state = std::move( next );
+    result.states.push_back( state );
   }
 
-  return trace;
+  return result;
 }
 
 } /* namespace mockturtle */

@@ -9,6 +9,7 @@
 #include <kitty/dynamic_truth_table.hpp>
 #include <kitty/operations.hpp>
 
+#include <algorithm>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -56,14 +57,25 @@ sequential<aig_network> lfsr( uint32_t width, uint32_t seed )
 }
 
 /*! \brief Collects the single primary output of every cycle into a bit string. */
-std::string trace_of( std::vector<std::vector<bool>> const& trace )
+std::string trace_of( simulate_sequential_result<bool> const& result )
 {
   std::string bits;
-  for ( auto const& outputs : trace )
+  for ( auto const& outputs : result.outputs )
   {
     bits += outputs[0] ? '1' : '0';
   }
   return bits;
+}
+
+/*! \brief Reads a register state as an integer, register 0 being the low bit. */
+uint32_t state_of( std::vector<bool> const& state )
+{
+  uint32_t value{ 0 };
+  for ( auto i = 0u; i < state.size(); ++i )
+  {
+    value |= static_cast<uint32_t>( state[i] ) << i;
+  }
+  return value;
 }
 
 } /* namespace */
@@ -72,12 +84,12 @@ TEST_CASE( "simulate an LFSR from its reset state", "[simulation_sequential]" )
 {
   auto const aig = lfsr( 4, 1 );
 
-  auto const trace = simulate_sequential<bool>( aig, 15, default_simulator<bool>( std::vector<bool>{} ) );
+  auto const result = simulate_sequential<bool>( aig, 15, default_simulator<bool>( std::vector<bool>{} ) );
 
-  CHECK( trace.size() == 15 );
+  CHECK( result.num_cycles() == 15 );
 
   /* a maximal-length sequence: 15 states before it comes back around */
-  CHECK( trace_of( trace ) == "000100110101111" );
+  CHECK( trace_of( result ) == "000100110101111" );
 
   /* and it does come back around -- cycle 15 repeats cycle 0 */
   auto const two_periods = simulate_sequential<bool>( aig, 30, default_simulator<bool>( std::vector<bool>{} ) );
@@ -187,18 +199,85 @@ TEST_CASE( "simulate a sequential network with truth tables", "[simulation_seque
   reg.init = register_init::zero;
   aig.set_register( 0, reg );
 
-  auto const trace = simulate_sequential<kitty::dynamic_truth_table>(
+  auto const result = simulate_sequential<kitty::dynamic_truth_table>(
       aig, 3, default_simulator<kitty::dynamic_truth_table>( 2 ) );
 
   kitty::dynamic_truth_table expected( 2 );
   kitty::create_from_hex_string( expected, "8" );
 
-  CHECK( kitty::is_const0( trace[0][0] ) );
-  CHECK( trace[1][0] == expected );
-  CHECK( trace[2][0] == expected );
+  CHECK( kitty::is_const0( result.outputs[0][0] ) );
+  CHECK( result.outputs[1][0] == expected );
+  CHECK( result.outputs[2][0] == expected );
+
+  /* the register itself carries the AND from the first cycle on */
+  CHECK( kitty::is_const0( result.states[0][0] ) );
+  CHECK( result.states[1][0] == expected );
+  CHECK( result.final_state()[0] == expected );
 }
 
-TEST_CASE( "simulating no cycles yields no values", "[simulation_sequential]" )
+TEST_CASE( "simulating no cycles still reports the reset state", "[simulation_sequential]" )
 {
-  CHECK( simulate_sequential<bool>( lfsr( 4, 1 ), 0, default_simulator<bool>( std::vector<bool>{} ) ).empty() );
+  auto const result = simulate_sequential<bool>( lfsr( 4, 1 ), 0, default_simulator<bool>( std::vector<bool>{} ) );
+
+  CHECK( result.num_cycles() == 0 );
+  CHECK( result.outputs.empty() );
+
+  /* zero cycles still cross one state boundary: the one the run started at */
+  CHECK( result.states.size() == 1 );
+  CHECK( state_of( result.reset_state() ) == 1 );
+  CHECK( state_of( result.final_state() ) == 1 );
+}
+
+TEST_CASE( "the state trace follows the LFSR through its cycle", "[simulation_sequential]" )
+{
+  auto const result = simulate_sequential<bool>( lfsr( 4, 1 ), 15, default_simulator<bool>( std::vector<bool>{} ) );
+
+  /* n cycles cross n + 1 state boundaries */
+  CHECK( result.num_cycles() == 15 );
+  CHECK( result.states.size() == result.outputs.size() + 1 );
+
+  /* it starts at its seed and, after a full period, returns to it */
+  CHECK( state_of( result.reset_state() ) == 1 );
+  CHECK( state_of( result.final_state() ) == 1 );
+
+  /* every intermediate state is distinct and non-zero -- a maximal-length run */
+  std::vector<uint32_t> seen;
+  for ( auto i = 0u; i < result.num_cycles(); ++i )
+  {
+    CHECK( state_of( result.states[i] ) != 0 );
+    seen.push_back( state_of( result.states[i] ) );
+  }
+  std::sort( seen.begin(), seen.end() );
+  CHECK( std::unique( seen.begin(), seen.end() ) == seen.end() );
+}
+
+TEST_CASE( "the state trace records what a register held during its cycle", "[simulation_sequential]" )
+{
+  /* one register, driven straight from the primary input, and read out on the
+     primary output: the output of a cycle is the state it started in */
+  sequential<aig_network> aig;
+
+  auto const in = aig.create_pi();
+  auto const state = aig.create_ro();
+
+  aig.create_po( state );
+  aig.create_ri( in );
+
+  mockturtle::register_t reg;
+  reg.init = register_init::zero;
+  aig.set_register( 0, reg );
+
+  std::vector<std::vector<bool>> const stimulus{ { true }, { false }, { true } };
+  stimulus_simulator sim( stimulus );
+
+  auto const result = simulate_sequential<bool>( aig, 3, sim );
+
+  CHECK( trace_of( result ) == "010" );
+  for ( auto i = 0u; i < result.num_cycles(); ++i )
+  {
+    CHECK( result.states[i][0] == result.outputs[i][0] );
+  }
+
+  /* the last input latched but never read out */
+  CHECK( result.final_state()[0] == true );
 }
