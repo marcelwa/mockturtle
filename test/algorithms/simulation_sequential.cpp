@@ -159,8 +159,13 @@ TEST_CASE( "a stimulus shorter than the run holds its last assignment", "[simula
   reg.init = register_init::zero;
   aig.set_register( 0, reg );
 
-  /* one assignment for a six-cycle run: the input stays high after cycle 0 */
-  stimulus_simulator sim( { { true } } );
+  /* One assignment for a four-cycle run: the input stays high after cycle 0.
+     Spelled through a named vector rather than as `sim( { { true } } )`, which
+     GCC 12 and older cannot tell apart from a copy construction -- the same
+     reason `default_simulator<bool>` is spelled with an explicit `std::vector<bool>{}`
+     throughout this file. */
+  std::vector<std::vector<bool>> const stimulus{ { true } };
+  stimulus_simulator sim( stimulus );
 
   CHECK( trace_of( simulate_sequential<bool>( aig, 4, sim ) ) == "0111" );
 }
