@@ -1127,7 +1127,16 @@ private:
       node_match[i].map_refs = 0;
 
       /* update flows if in area-oriented mapping */
-      if ( ps.area_oriented_mapping )
+      /* AGENTIC-SYNTHESIS FIX: this loop runs over every node index, including nodes
+         that are unreachable from the POs (dangling AND nodes, which ABC's `&put`
+         leaves behind after `&dch` and `write_aiger` then emits).  The cut enumerator
+         never visits those, so their cut set is empty and `best()` returns
+         `*_pcuts[0]` -- a default-constructed `cut`, whose `_cend` is indeterminate
+         (`cut() = default`).  The subsequent `for ( auto leaf : cut )` then walks
+         garbage and indexes `cuts[leaf]` out of bounds.  Reachable nodes always own at
+         least the trivial unit cut, so skipping empty cut sets cannot change the
+         mapping.  Reported upstream. */
+      if ( ps.area_oriented_mapping && cuts[i].size() > 0 )
         compute_cut_data<false>( cuts[i].best(), ntk.index_to_node( i ), false );
     }
 
