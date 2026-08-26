@@ -57,6 +57,7 @@
 #include "../views/mapping_view.hpp"
 #include "../views/mffc_view.hpp"
 #include "../views/topo_view.hpp"
+#include "acd/acd_wrapper.hpp"
 #include "cleanup.hpp"
 #include "collapse_mapped.hpp"
 #include "cut_enumeration.hpp"
@@ -129,6 +130,26 @@ struct lut_map_params
 
   /*! \brief Maximum number variables for cost function caching */
   uint32_t cost_cache_vars{ 3u };
+
+  /*! \brief Ashenhurst-Curtis decomposition: LUT size of the decomposed structure.
+   *
+   * 0 (the default) disables decomposition entirely and the mapper behaves exactly as
+   * before.  When non-zero, `cut_enumeration_ps.cut_size` may (and should) exceed it: a
+   * cut with more leaves than `acd_lut_size` is costed by the number of `acd_lut_size`-LUTs
+   * an Ashenhurst-Curtis decomposition of its function needs, and is discarded if no such
+   * decomposition exists.  This mirrors ABC's `if -K <cut_size> -Z <acd_lut_size>`.
+   * Requires truth tables, i.e. `ComputeTruth`/`StoreFunction` set.
+   */
+  uint32_t acd_lut_size{ 0u };
+
+  /*! \brief Generate decomposable (wide) cuts in every mapping pass, not only the first.
+   *
+   * Stock behaviour (`false`) matches ABC: a merged cut with more leaves than
+   * `acd_lut_size` is proposed by the cut generator only in the first pass, and later
+   * passes see a decomposable cut only if it survived as the incumbent best cut.  Setting
+   * this re-derives decomposable candidates from each pass's current fanin priority lists.
+   */
+  bool acd_regenerate_wide{ false };
 
   /*! \brief Be verbose. */
   bool verbose{ false };
@@ -1191,6 +1212,13 @@ private:
           continue;
         }
 
+        /* wide (decomposable) cuts: generated in the first pass only, unless asked
+           otherwise -- this is the single predicate under study */
+        if ( !wide_cut_generation_allowed( new_cut.size() ) )
+        {
+          continue;
+        }
+
         if ( ps.remove_dominated_cuts && rcuts.is_dominated( new_cut ) )
         {
           continue;
@@ -1319,6 +1347,12 @@ private:
           {
             return true; /* continue */
           }
+        }
+
+        /* wide (decomposable) cuts: first pass only, unless asked otherwise */
+        if ( !wide_cut_generation_allowed( new_cut.size() ) )
+        {
+          return true; /* continue */
         }
 
         if ( ps.remove_dominated_cuts && rcuts.is_dominated( new_cut ) )
@@ -1889,6 +1923,22 @@ private:
         if ( ps.sop_balancing || ps.esop_balancing )
         {
           compute_isop( cut );
+        }
+        else if ( ps.acd_lut_size != 0 && cut.size() > ps.acd_lut_size )
+        {
+          auto const [nluts, levels] = acd_lookup( cut->func_id, cut.size() );
+          if ( levels == 0 )
+          {
+            /* the function of this cut admits no AC decomposition into acd_lut_size-LUTs */
+            cut->data.ignore = true;
+            lut_area = cut.size(); /* pessimistic, only ever used if this cut wins anyway */
+            lut_delay = 2;
+          }
+          else
+          {
+            lut_area = nluts;
+            lut_delay = levels;
+          }
         }
         else
         {
@@ -2578,6 +2628,53 @@ private:
   }
 #pragma endregion
 
+#pragma region Ashenhurst-Curtis decomposition
+
+  /*! \brief May the cut generator propose a cut of this width in the current pass?
+   *
+   * Cuts no wider than the decomposition LUT size are always allowed.  A *wide* cut --
+   * one that can only be implemented by decomposing it -- is allowed in the first pass
+   * always, and in later passes only when `acd_regenerate_wide` is set.  With
+   * decomposition disabled (`acd_lut_size == 0`) this is unconditionally true and the
+   * mapper is bit-identical to the unmodified one.
+   */
+  inline bool wide_cut_generation_allowed( uint32_t cut_size ) const
+  {
+    if ( ps.acd_lut_size == 0 || cut_size <= ps.acd_lut_size )
+      return true;
+    return ps.acd_regenerate_wide || iteration == 0;
+  }
+
+  /*! \brief (number of LUTs, number of levels) of an AC decomposition of a cut function.
+   *
+   * Returns `{0, 0}` when the function admits no decomposition into `acd_lut_size`-LUTs.
+   * Memoised on the truth-table index: the decomposer is asked no question that depends
+   * on the mapper's state, so the answer is a function of the cut function alone, and
+   * complementing the function only complements the root LUT.
+   */
+  std::pair<uint32_t, uint32_t> acd_lookup( uint32_t func_id, uint32_t num_vars )
+  {
+    uint32_t const key = func_id >> 1;
+    if ( auto it = acd_cache.find( key ); it != acd_cache.end() )
+      return it->second;
+
+    TT const& tt = truth_tables[key << 1];
+    assert( tt.num_vars() == num_vars );
+    (void)num_vars;
+
+    uint32_t cost = 0;
+    int const levels = acd_iface::evaluate( const_cast<uint64_t*>( tt._bits.data() ),
+                                            tt.num_vars(), ps.acd_lut_size, &cost );
+
+    std::pair<uint32_t, uint32_t> const res =
+        levels < 0 ? std::make_pair( 0u, 0u )
+                   : std::make_pair( cost, static_cast<uint32_t>( levels ) );
+    acd_cache[key] = res;
+    return res;
+  }
+
+#pragma endregion
+
 #pragma region balancing
   void compute_isop( cut_t& cut, bool both_phases = true )
   {
@@ -2830,6 +2927,9 @@ private:
   lut_map_params const& ps;
   lut_map_stats& st;
 
+  /* memoised AC-decomposition verdicts, keyed by truth-table index */
+  std::unordered_map<uint32_t, std::pair<uint32_t, uint32_t>> acd_cache;
+
   uint32_t iteration{ 0 };       /* current mapping iteration */
   uint32_t area_iteration{ 0 };  /* current area iteration */
   uint32_t delay{ 0 };           /* current delay of the mapping */
@@ -2899,6 +2999,14 @@ klut_network lut_map( Ntk& ntk, lut_map_params ps = {}, lut_map_stats* pst = nul
   lut_map_params tps = ps;
   lut_map_stats st;
   klut_network klut;
+
+  /* adjust params for Ashenhurst-Curtis decomposition */
+  if ( ps.acd_lut_size != 0 )
+  {
+    assert( ps.cut_enumeration_ps.cut_size <= 11u && "ACD supports at most 11 variables" );
+    assert( ps.cut_enumeration_ps.cut_size > ps.acd_lut_size && "cut size must exceed the decomposition LUT size" );
+    tps.cut_expansion = false;
+  }
 
   /* adjust params for balancing */
   if ( ps.sop_balancing || ps.esop_balancing )
@@ -2987,6 +3095,14 @@ void lut_map_inplace( Ntk& ntk, lut_map_params const& ps = {}, lut_map_stats* ps
 
   lut_map_params tps = ps;
   lut_map_stats st;
+
+  /* adjust params for Ashenhurst-Curtis decomposition */
+  if ( ps.acd_lut_size != 0 )
+  {
+    assert( ps.cut_enumeration_ps.cut_size <= 11u && "ACD supports at most 11 variables" );
+    assert( ps.cut_enumeration_ps.cut_size > ps.acd_lut_size && "cut size must exceed the decomposition LUT size" );
+    tps.cut_expansion = false;
+  }
 
   /* adjust params for balancing */
   if ( ps.sop_balancing || ps.esop_balancing )
