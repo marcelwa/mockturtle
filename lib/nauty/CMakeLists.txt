@@ -1,49 +1,35 @@
-project(nauty LANGUAGES C)
-
 set(NAUTY_BUILD_SOURCE_DIR "${CMAKE_CURRENT_BINARY_DIR}/src")
-file(COPY "${PROJECT_SOURCE_DIR}/" DESTINATION "${NAUTY_BUILD_SOURCE_DIR}")
-
-execute_process(COMMAND ${CMAKE_COMMAND} -E env "CC=${CMAKE_C_COMPILER}"
-                        "./configure"
-                WORKING_DIRECTORY "${NAUTY_BUILD_SOURCE_DIR}"
-                RESULT_VARIABLE CONF_RESULT
-                OUTPUT_VARIABLE CONF_OUTPUT)
-if (NOT CONF_RESULT EQUAL 0)
-  message(FATAL_ERROR "Failed to configure nauty")
+file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/" DESTINATION "${NAUTY_BUILD_SOURCE_DIR}")
+execute_process(COMMAND ${CMAKE_COMMAND} -E env "CC=${CMAKE_C_COMPILER}" "./configure" "--disable-popcnt"
+  WORKING_DIRECTORY "${NAUTY_BUILD_SOURCE_DIR}"
+  RESULT_VARIABLE nauty_configure_result OUTPUT_VARIABLE nauty_configure_output
+  ERROR_VARIABLE nauty_configure_error)
+if(NOT nauty_configure_result EQUAL 0)
+  message(FATAL_ERROR "Failed to configure Nauty: ${nauty_configure_output}\n${nauty_configure_error}")
 endif()
-
-file(READ "${NAUTY_BUILD_SOURCE_DIR}/makefile" NAUTY_CONFIGURED_MAKEFILE)
-if (NAUTY_CONFIGURED_MAKEFILE MATCHES "(^|\n)CFLAGS=([^\n]*)")
-  separate_arguments(NAUTY_CONFIGURED_CFLAGS UNIX_COMMAND "${CMAKE_MATCH_2}")
-  foreach (NAUTY_CONFIGURED_CFLAG ${NAUTY_CONFIGURED_CFLAGS})
-    # Mirror only -m/-D/-U flags from configure; other flags such as -W/-O
-    # should not override CMake's warning or optimization settings.
-    if (NAUTY_CONFIGURED_CFLAG MATCHES "^(-m|-D|-U)")
-      list(APPEND NAUTY_COMPILE_OPTIONS "${NAUTY_CONFIGURED_CFLAG}")
-    else()
-      list(APPEND NAUTY_IGNORED_COMPILE_OPTIONS "${NAUTY_CONFIGURED_CFLAG}")
+# Match nauty.a's object list; the other C files are standalone command-line tools.
+add_library(mockturtle_nauty STATIC EXCLUDE_FROM_ALL
+  ${NAUTY_BUILD_SOURCE_DIR}/nauty.c ${NAUTY_BUILD_SOURCE_DIR}/nautil.c
+  ${NAUTY_BUILD_SOURCE_DIR}/nausparse.c ${NAUTY_BUILD_SOURCE_DIR}/naugraph.c
+  ${NAUTY_BUILD_SOURCE_DIR}/schreier.c ${NAUTY_BUILD_SOURCE_DIR}/naurng.c)
+set_target_properties(mockturtle_nauty PROPERTIES EXPORT_NAME _nauty POSITION_INDEPENDENT_CODE ON
+  C_VISIBILITY_PRESET hidden EXCLUDE_FROM_ALL $<NOT:$<BOOL:${MOCKTURTLE_INSTALL}>>)
+# Configure may select ABI/CPU macros needed by its generated headers.
+file(READ "${NAUTY_BUILD_SOURCE_DIR}/makefile" nauty_makefile)
+if(nauty_makefile MATCHES "(^|\n)CFLAGS=([^\n]*)")
+  separate_arguments(nauty_flags UNIX_COMMAND "${CMAKE_MATCH_2}")
+  foreach(flag IN LISTS nauty_flags)
+    if(flag MATCHES "^(-m|-D|-U)")
+      target_compile_options(mockturtle_nauty PRIVATE "${flag}")
     endif()
   endforeach()
 endif()
-if (NAUTY_IGNORED_COMPILE_OPTIONS)
-  message(WARNING "Ignoring nauty configure CFLAGS: ${NAUTY_IGNORED_COMPILE_OPTIONS}")
+if(MOCKTURTLE_ENABLE_IPO)
+  include(CheckIPOSupported)
+  check_ipo_supported(RESULT nauty_ipo_supported OUTPUT nauty_ipo_error LANGUAGES C)
+  if(NOT nauty_ipo_supported)
+    message(FATAL_ERROR "MOCKTURTLE_ENABLE_IPO is unsupported for Nauty: ${nauty_ipo_error}")
+  endif()
+  set_property(TARGET mockturtle_nauty PROPERTY INTERPROCEDURAL_OPTIMIZATION ON)
 endif()
-
-file(GLOB FILENAMES "${NAUTY_BUILD_SOURCE_DIR}/*.c")
-
-list(REMOVE_ITEM FILENAMES ${NAUTY_BUILD_SOURCE_DIR}/poptest.c)
-list(REMOVE_ITEM FILENAMES ${NAUTY_BUILD_SOURCE_DIR}/sorttemplates.c)
-list(REMOVE_ITEM FILENAMES ${NAUTY_BUILD_SOURCE_DIR}/testg.c)
-list(REMOVE_ITEM FILENAMES ${NAUTY_BUILD_SOURCE_DIR}/splay.c)
-list(REMOVE_ITEM FILENAMES ${NAUTY_BUILD_SOURCE_DIR}/sumlines.c)
-
-add_library(nauty ${FILENAMES})
-target_include_directories(nauty INTERFACE "${NAUTY_BUILD_SOURCE_DIR}")
-
-# Suppress warnings from this external library
-if (UNIX)
-  target_compile_options(nauty PRIVATE -w)
-endif()
-if (NAUTY_COMPILE_OPTIONS)
-  target_compile_options(nauty PRIVATE ${NAUTY_COMPILE_OPTIONS})
-endif()
+mockturtle_instrument(mockturtle_nauty)

@@ -1,23 +1,7 @@
-cmake_minimum_required (VERSION 3.16...3.29)
-
-project(libabcsat LANGUAGES CXX)
-
-include_directories(${PROJECT_SOURCE_DIR})
-file(GLOB ABC_SRC *.cpp)
-
-# Surpress warnings in external library
-if (UNIX)
-    add_compile_options("-w")
-elseif (MSVC)
-    string(REPLACE "/W3" "/w" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
-endif()
-
-if (STATIC_LIBABC)
-    add_library(libabcsat STATIC EXCLUDE_FROM_ALL ${ABC_SRC})
-    set_property(TARGET libabcsat PROPERTY OUTPUT_NAME libabcsat)
-else()
-    add_library(libabcsat SHARED EXCLUDE_FROM_ALL ${ABC_SRC})
-    set_property(TARGET libabcsat PROPERTY OUTPUT_NAME libabcsat)
-    set_property(TARGET libabcsat PROPERTY POSITION_INDEPENDENT_CODE ON)
-endif()
-target_include_directories(libabcsat INTERFACE ${PROJECT_SOURCE_DIR})
+add_library(mockturtle_abcsat STATIC EXCLUDE_FROM_ALL
+  AbcGlucose.cpp Glucose.cpp SimpSolver.cpp satSolver.cpp satStore.cpp)
+set_property(TARGET mockturtle_abcsat PROPERTY EXPORT_NAME _abcsat)
+target_include_directories(mockturtle_abcsat PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_definitions(mockturtle_abcsat PRIVATE ABC_NAMESPACE=pabc)
+target_link_libraries(mockturtle_abcsat PUBLIC mockturtle_abc_platform Threads::Threads)
+mockturtle_configure_archive(mockturtle_abcsat)

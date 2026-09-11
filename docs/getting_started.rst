@@ -1,7 +1,7 @@
 Getting started
 ===============
 
-mockturtle is a header-only C++-17 library. It can be compiled as a stand-alone
+mockturtle is a C++17 library with optional compiled backends. It can be compiled as a stand-alone
 tool for direct usage, or be integrated in another project as a library.
 
 Compilation requirements
@@ -25,7 +25,7 @@ configure, compile and run the example code in our GitHub page::
   make cut_enumeration
   ./examples/cut_enumeration
 
-Please note that CMake version >= 3.8 is required. For a more interactive
+Please note that CMake version >= 3.25 is required. For a more interactive
 interface, you could also use ``ccmake``.
 
 If you experience that the system compiler does not suffice the requirements,
@@ -43,10 +43,10 @@ Then, a make target of your file name should become available.
 
 For most of the algorithms, there is a corresponding experiment code in the 
 experiments directory, which demonstrates how the algorithm can be called.
-To compile the experiments, you need to turn on the ``MOCKTURTLE_EXPERIMENTS``
+To compile the experiments, you need to turn on the ``MOCKTURTLE_BUILD_EXPERIMENTS``
 option in CMake::
 
-  cmake -DMOCKTURTLE_EXPERIMENTS=ON ..
+  cmake -DMOCKTURTLE_BUILD_EXPERIMENTS=ON ..
 
 Note that many of the experiments check circuit equivalence with a system-command
 call to ABC_. If you see ``abc: command not found``, you could either install ABC_
@@ -63,9 +63,9 @@ configure CMake in release mode::
 Using mockturtle as a library in another project
 ------------------------------------------------
 
-Being header-only, mockturtle can be easily integrated into existing and new projects.
-Just add the include directory of mockturtle to your include directories, and simply
-include mockturtle by
+Use the exported CMake targets to integrate mockturtle and its required dependency
+headers into your project; see :doc:`cmake` for component selection and installation.
+Then include mockturtle by
 
 .. code-block:: c++
 
@@ -83,6 +83,6 @@ in CMake::
 
   mkdir build
   cd build
-  cmake -DMOCKTURTLE_TEST=ON ..
+  cmake -DMOCKTURTLE_BUILD_TESTS=ON ..
   make run_tests
   ./test/run_tests

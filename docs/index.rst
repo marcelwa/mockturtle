@@ -10,6 +10,7 @@ Welcome to mockturtle's documentation!
    :maxdepth: 2
 
    getting_started
+   cmake
    debugging
    changelog
    acknowledgments
@@ -58,4 +59,3 @@ Welcome to mockturtle's documentation!
    :caption: Utilities
 
    utils/*
-

@@ -1,9 +1,6 @@
 add_library(experiments INTERFACE)
 target_include_directories(experiments INTERFACE ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(experiments INTERFACE fmt json)
-if (MOCKTURTLE_ENABLE_MATPLOTLIB)
-  target_link_libraries(experiments INTERFACE matplot)
-endif()
+target_link_libraries(experiments INTERFACE mockturtle::all)
 
 # check for git revision
 if(EXISTS ${PROJECT_SOURCE_DIR}/.git)
@@ -27,5 +24,6 @@ file(GLOB FILENAMES *.cpp)
 foreach(filename ${FILENAMES})
   get_filename_component(basename ${filename} NAME_WE)
   add_executable(${basename} ${filename})
-  target_link_libraries(${basename} PUBLIC experiments mockturtle)
+  target_link_libraries(${basename} PRIVATE experiments)
+  mockturtle_configure_executable(${basename})
 endforeach()
