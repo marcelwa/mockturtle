@@ -11,6 +11,8 @@ foreach(directory IN LISTS mockturtle_header_directories)
     $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}/mockturtle/dependencies/${directory}>)
 endforeach()
 target_compile_definitions(mockturtle_dependencies INTERFACE FMT_HEADER_ONLY ABC_NAMESPACE=pabc)
+# fmt requires the compiler to interpret source and execution text as UTF-8.
+target_compile_options(mockturtle_dependencies INTERFACE "$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
 
 # ABC uses LLP64 on Windows and LP64 on Unix; host CPU names are insufficient when cross compiling.
 add_library(mockturtle_abc_platform INTERFACE)

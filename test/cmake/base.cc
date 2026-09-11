@@ -6,6 +6,8 @@
 
 int main()
 {
+  if ( fmt::format( FMT_STRING( "{}" ), 7 ) != "7" )
+    return 1;
   mockturtle::aig_network aig;
   const auto a = aig.create_pi();
   const auto b = aig.create_pi();
