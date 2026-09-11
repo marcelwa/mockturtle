@@ -72,6 +72,8 @@ if(NOT BASE_ONLY)
   add_executable(shared main.cc)
   target_compile_definitions(shared PRIVATE CHECK_sat CHECK_esop)
   target_link_libraries(shared PRIVATE combined)
+  # ASan must initialize in the executable before loading an instrumented shared library.
+  target_link_options(shared PRIVATE $<$<BOOL:${MOCKTURTLE_ENABLE_ASAN}>:-fsanitize=address>)
   add_test(NAME shared COMMAND shared)
   if(MOCKTURTLE_ENABLE_NAUTY OR BILL_Z3 OR MOCKTURTLE_ENABLE_MATPLOTLIB)
     add_executable(optional optional.cc)
