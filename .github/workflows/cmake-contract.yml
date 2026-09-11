@@ -56,3 +56,22 @@ jobs:
           --define BILL_Z3=ON
           --define MOCKTURTLE_ENABLE_MATPLOTLIB=ON
           --define MOCKTURTLE_ENABLE_IPO=ON
+
+  mingw:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-ninja
+            mingw-w64-ucrt-x86_64-python
+      - name: Exercise MinGW consumers
+        shell: msys2 {0}
+        run: python test/cmake/run.py --generator "Ninja Multi-Config"
