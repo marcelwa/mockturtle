@@ -1,0 +1,58 @@
+name: CMake package contract
+
+on:
+  push:
+    branches: [master, mnt]
+  pull_request:
+  merge_group:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  consumers:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-2022]
+        cmake: ["3.25.3", latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: ilammy/msvc-dev-cmd@v1
+        if: runner.os == 'Windows'
+      - name: Install CMake and Ninja
+        shell: bash
+        run: |
+          if [ "${{ matrix.cmake }}" = latest ]; then
+            python -m pip install cmake ninja
+          else
+            python -m pip install 'cmake==${{ matrix.cmake }}' ninja
+          fi
+      - name: Exercise embedded and relocated consumers
+        run: python test/cmake/run.py --generator "Ninja Multi-Config"
+
+  optional-integrations:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: sudo apt-get update && sudo apt-get install -y libz3-dev
+      - run: python -m pip install cmake ninja numpy
+      - name: Exercise optional integrations and IPO
+        run: >-
+          python test/cmake/run.py
+          --define MOCKTURTLE_ENABLE_NAUTY=ON
+          --define BILL_Z3=ON
+          --define MOCKTURTLE_ENABLE_MATPLOTLIB=ON
+          --define MOCKTURTLE_ENABLE_IPO=ON
