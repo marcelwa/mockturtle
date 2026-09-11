@@ -44,6 +44,10 @@
 #include <optional>
 #include <utility>
 
+#ifndef _WIN32
+#include <sys/wait.h>
+#endif
+
 namespace mockturtle
 {
 
@@ -200,7 +204,7 @@ public:
     }
   }
 
-#ifndef _MSC_VER
+#ifndef _WIN32
   void run( std::function<std::string( std::string const& )> const& make_command )
   {
     if ( !read_initial_testcase() )
@@ -306,7 +310,7 @@ private:
     return was_FIT;
   }
 
-#ifndef _MSC_VER
+#ifndef _WIN32
   bool test( std::function<std::string( std::string const& )> const& make_command, std::string const& filename )
   {
     was_FIT = test_inner( make_command, filename );

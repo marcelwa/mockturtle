@@ -43,6 +43,10 @@
 #include <lorina/lorina.hpp>
 #include <optional>
 
+#ifndef _WIN32
+#include <sys/wait.h>
+#endif
+
 namespace mockturtle
 {
 
@@ -128,7 +132,7 @@ public:
       : gen( gen ), ps( ps )
   {}
 
-#ifndef _MSC_VER
+#ifndef _WIN32
   uint64_t run( std::function<std::string( std::string const& )>&& make_command )
   {
     return run( make_callback( make_command ) );
@@ -176,7 +180,7 @@ public:
   }
 
 private:
-#ifndef _MSC_VER
+#ifndef _WIN32
   inline std::function<bool( Ntk )> make_callback( std::function<std::string( std::string const& )>& make_command )
   {
     std::function<bool( Ntk )> fn = [&]( Ntk ntk ) -> bool {
