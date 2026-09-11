@@ -38,7 +38,8 @@ list(REMOVE_ITEM FILENAMES ${NAUTY_BUILD_SOURCE_DIR}/splay.c)
 list(REMOVE_ITEM FILENAMES ${NAUTY_BUILD_SOURCE_DIR}/sumlines.c)
 
 add_library(nauty ${FILENAMES})
-target_include_directories(nauty INTERFACE "${NAUTY_BUILD_SOURCE_DIR}")
+target_include_directories(nauty INTERFACE "$<BUILD_INTERFACE:${NAUTY_BUILD_SOURCE_DIR}>")
+set_property(TARGET nauty PROPERTY EXPORT_NAME nauty)
 
 # Suppress warnings from this external library
 if (UNIX)
