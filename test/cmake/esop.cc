@@ -1,5 +1,7 @@
 #include <mockturtle/algorithms/exorcism.hpp>
 
+static_assert( sizeof( abc::exorcism::ABC_PTRINT_T ) == sizeof( void* ) );
+
 bool esop_check()
 {
   kitty::dynamic_truth_table function( 4u );

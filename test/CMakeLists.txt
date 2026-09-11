@@ -4,5 +4,6 @@ file(GLOB_RECURSE FILENAMES *.cpp)
 
 add_executable(run_tests ${FILENAMES})
 target_link_libraries(run_tests PUBLIC mockturtle::all)
+mockturtle_configure_executable(run_tests)
 target_compile_definitions(run_tests PUBLIC BENCHMARKS_PATH="${CMAKE_CURRENT_SOURCE_DIR}/../experiments/benchmarks")
 target_compile_definitions(run_tests PUBLIC CATCH_CONFIG_CONSOLE_WIDTH=300)
