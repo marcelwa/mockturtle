@@ -63,9 +63,15 @@ configure CMake in release mode::
 Using mockturtle as a library in another project
 ------------------------------------------------
 
-Being header-only, mockturtle can be easily integrated into existing and new projects.
-Just add the include directory of mockturtle to your include directories, and simply
-include mockturtle by
+mockturtle can be embedded with ``add_subdirectory`` or FetchContent, or installed and
+found with ``find_package``. Either way it provides one target that carries the headers,
+the vendored dependencies and the compiled SAT and ESOP backends::
+
+  find_package(mockturtle CONFIG REQUIRED)
+  target_link_libraries(my_tool PRIVATE mockturtle::mockturtle)
+
+Embedded builds do not install by default; pass ``-DMOCKTURTLE_INSTALL=ON`` to install
+mockturtle from within a parent project. Then include mockturtle by
 
 .. code-block:: c++
 

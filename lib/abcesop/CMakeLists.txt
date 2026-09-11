@@ -1,29 +1,5 @@
-cmake_minimum_required (VERSION 3.16...3.29)
-
-project(libabcesop LANGUAGES CXX)
-
-include_directories(${PROJECT_SOURCE_DIR})
-file(GLOB ABC_SRC *.cpp)
-
-# Surpress warnings in external library
-if (UNIX)
-    add_compile_options("-w")
-elseif (MSVC)
-    string(REPLACE "/W3" "/w" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
-endif()
-
-if (STATIC_LIBABC)
-    add_library(libabcesop STATIC EXCLUDE_FROM_ALL ${ABC_SRC})
-    set_property(TARGET libabcesop PROPERTY OUTPUT_NAME libabcesop)
-else()
-    add_library(libabcesop SHARED EXCLUDE_FROM_ALL ${ABC_SRC})
-    set_property(TARGET libabcesop PROPERTY OUTPUT_NAME libabcesop)
-    set_property(TARGET libabcesop PROPERTY POSITION_INDEPENDENT_CODE ON)
-endif()
-target_include_directories(libabcesop INTERFACE ${PROJECT_SOURCE_DIR})
-
-if (UNIX)
-    target_compile_definitions(libabcesop PUBLIC "LIN64" ABC_NO_USE_READLINE)
-elseif(WIN32)
-    target_compile_definitions(libabcesop PUBLIC ABC_USE_NO_READLINE NOMINMAX  WIN32_NO_DLL _CRT_SECURE_NO_WARNINGS)
-endif()
+add_library(mockturtle_abcesop STATIC exor.cpp exorBits.cpp exorCubes.cpp exorLink.cpp exorList.cpp exorUtil.cpp)
+set_property(TARGET mockturtle_abcesop PROPERTY EXPORT_NAME abcesop)
+target_include_directories(mockturtle_abcesop PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(mockturtle_abcesop PUBLIC mockturtle_abc_platform)
+mockturtle_configure_archive(mockturtle_abcesop)

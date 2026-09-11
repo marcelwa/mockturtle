@@ -4,6 +4,9 @@ Change log
 v0.4 (not yet released)
 -----------------------
 
+* Build system: scope compile options and instrumentation to mockturtle's own targets instead of the
+  whole directory, derive ABC's integer widths from the target's pointer size, and install a
+  relocatable CMake package. See :doc:`getting_started` for consuming an installed mockturtle.
 * Network interfaces:
     - Remove the "name" argument in `create_pi`, `create_po`, `create_ri`, and `create_ro`. Names should be set using the `names_view` APIs. `#559 <https://github.com/lsils/mockturtle/pull/559>`_
     - Deprecated APIs: `substitute_node_of_parents`, `num_latches` (use `num_registers` instead), `latch_reset`. `#564 <https://github.com/lsils/mockturtle/pull/564>`_

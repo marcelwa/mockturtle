@@ -2881,7 +2881,10 @@ template <typename Char, typename... Args> class basic_format_string {
                   detail::count_statically_named_args<Args...>()) {
       using checker =
           detail::format_string_checker<Char, remove_cvref_t<Args>...>;
-      detail::parse_format_string<true>(str_, checker(s));
+      // Local fix, upstream in fmt 11.1: an FMT_STRING argument converts to
+      // basic_string_view only explicitly, so `checker(s)` is not a constant
+      // expression under Clang. Drop when this bundled fmt is next updated.
+      detail::parse_format_string<true>(str_, checker(str_));
     }
 #else
     detail::check_format_string<Args...>(s);
