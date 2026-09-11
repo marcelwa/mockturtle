@@ -5,6 +5,7 @@
 #endif
 #include <vector>
 #include <ostream>
+#include <fstream>
 #include <set>
 #include "tt_utils.hpp"
 
