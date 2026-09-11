@@ -9,14 +9,14 @@ Compilation requirements
 
 Support of C++ 17 standard is required to compile mockturtle.
 We constantly test building mockturtle on Linux using Clang 11, GCC 7, GCC 9
-and GCC 10, and on Mac OS using Clang 12, GCC 9 and GCC 10.  It also 
+and GCC 10, and on Mac OS using Clang 12, GCC 9 and GCC 10.  It also
 compiles on Windows using the C++ compiler in Visual Studio 2019.
 
 Using mockturtle as a stand-alone tool
 --------------------------------------
 
 mockturtle can be compiled and used as a stand-alone logic synthesis tool.
-Compilation configuration can be easily done with CMake. For example, to 
+Compilation configuration can be easily done with CMake. For example, to
 configure, compile and run the example code in our GitHub page::
 
   mkdir build
@@ -41,7 +41,7 @@ file in the examples directory, and then re-configure with CMake::
 
 Then, a make target of your file name should become available.
 
-For most of the algorithms, there is a corresponding experiment code in the 
+For most of the algorithms, there is a corresponding experiment code in the
 experiments directory, which demonstrates how the algorithm can be called.
 To compile the experiments, you need to turn on the ``MOCKTURTLE_BUILD_EXPERIMENTS``
 option in CMake::
