@@ -66,6 +66,9 @@ def main():
     installed = work / "installed"
     configure(source / "test/cmake", installed, f"-DCMAKE_PREFIX_PATH={relocated.as_posix()}")
     build_and_test(installed)
+    if any(value.upper() == "BILL_Z3=ON" for value in args.define):
+        configure(source / "test/cmake", work / "missing-z3",
+                  f"-DCMAKE_PREFIX_PATH={relocated.as_posix()}", "-DMISSING_Z3=ON")
     print("All embedded and relocated package contracts passed.", flush=True)
 
 
