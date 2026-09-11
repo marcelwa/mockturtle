@@ -14,7 +14,9 @@ add_library(mockturtle_nauty STATIC EXCLUDE_FROM_ALL
   ${NAUTY_BUILD_SOURCE_DIR}/schreier.c ${NAUTY_BUILD_SOURCE_DIR}/naurng.c)
 set_target_properties(mockturtle_nauty PROPERTIES EXPORT_NAME _nauty POSITION_INDEPENDENT_CODE ON
   C_VISIBILITY_PRESET hidden EXCLUDE_FROM_ALL $<NOT:$<BOOL:${MOCKTURTLE_INSTALL}>>)
-# Configure may select ABI/CPU macros needed by its generated headers.
+target_compile_options(mockturtle_nauty PRIVATE
+  "$<$<AND:$<CONFIG:Release,RelWithDebInfo,MinSizeRel>,$<C_COMPILER_ID:GNU,Clang,AppleClang>>:-ffunction-sections;-fdata-sections>")
+# Configure may select ABI macros needed by its generated headers.
 file(READ "${NAUTY_BUILD_SOURCE_DIR}/makefile" nauty_makefile)
 if(nauty_makefile MATCHES "(^|\n)CFLAGS=([^\n]*)")
   separate_arguments(nauty_flags UNIX_COMMAND "${CMAKE_MATCH_2}")

@@ -13,7 +13,7 @@ mockturtle requires CMake 3.25 or newer and C++17. It can be embedded using
    * - ``mockturtle::mockturtle``
      - Headers and compile requirements, without compiled backends
    * - ``mockturtle::sat``
-     - Base plus ABC SAT and threading
+     - Base plus ABC SAT, threading, and Nauty when enabled
    * - ``mockturtle::esop``
      - Base plus ABC ESOP
    * - ``mockturtle::all``
@@ -79,7 +79,9 @@ Optional integrations and optimization
 
 ``MOCKTURTLE_ENABLE_NAUTY`` enables the bundled Nauty archive. It requires a native
 Unix environment with a shell and C compiler; Windows and cross compilation fail
-explicitly. Generated Nauty headers are included in the installed package.
+explicitly. Generated Nauty headers are included in the installed package. Nauty follows the
+SAT component because Percy exact synthesis uses it. Host-specific popcount
+detection is disabled to keep installed archives portable.
 
 ``MOCKTURTLE_ENABLE_ABC`` requires an ABC archive built according to
 https://github.com/lsils/abc-staticlib. Set ``MockturtleABC_ROOT`` to its prefix or
