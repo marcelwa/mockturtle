@@ -38,8 +38,11 @@ def main():
 
     embedded = work / "embedded"
     configure(source / "test/cmake", embedded, f"-DMOCKTURTLE_SOURCE={source.as_posix()}", "-DBASE_ONLY=ON")
+    # IPO checks may compile probe archives during configuration.
+    configured_archives = {path for path in embedded.rglob("*") if path.suffix.lower() in {".a", ".lib"}}
     build_and_test(embedded)
-    archives = [path for path in embedded.rglob("*") if path.suffix.lower() in {".a", ".lib"}]
+    archives = [path for path in embedded.rglob("*")
+                if path.suffix.lower() in {".a", ".lib"} and path not in configured_archives]
     if archives:
         raise RuntimeError(f"Base-only default build produced archives: {archives}")
     configure(source / "test/cmake", embedded, f"-DMOCKTURTLE_SOURCE={source.as_posix()}", "-DBASE_ONLY=OFF")

@@ -16,7 +16,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-2022]
-        cmake: ["3.25.3", latest]
+        cmake: ["3.25.2", latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
