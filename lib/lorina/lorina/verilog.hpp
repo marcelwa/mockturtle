@@ -49,6 +49,8 @@
 #include <utility>
 #include <vector>
 
+#include <fmt/ranges.h>
+
 namespace lorina
 {
 
