@@ -36,11 +36,14 @@
 #pragma once
 
 #include <algorithm>
-#include <cctype>
+#include <array>
 #include <iostream>
+#include <limits>
 #include <map>
 #include <regex>
+#include <stdexcept>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include <fmt/format.h>
@@ -64,6 +67,8 @@ namespace mockturtle
  * - `create_or`
  * - `create_xor`
  * - `create_maj`
+ *
+ * Invalid arithmetic module ports, parameters, or operands throw `std::invalid_argument`.
  *
    \verbatim embed:rst
 
@@ -107,13 +112,22 @@ public:
     }
 
     name_ = module_name;
+    if ( name_ != top_module_name_ && is_arithmetic_module( name_ ) )
+      arithmetic_ports_[name_] = {};
   }
 
   void on_inputs( const std::vector<std::string>& names, std::string const& size = "" ) const override
   {
     (void)size;
     if ( name_ != top_module_name_ )
+    {
+      if ( is_arithmetic_module( name_ ) )
+      {
+        auto& ports = arithmetic_ports_[name_].inputs;
+        ports.insert( ports.end(), names.begin(), names.end() );
+      }
       return;
+    }
 
     for ( const auto& name : names )
     {
@@ -150,7 +164,14 @@ public:
   {
     (void)size;
     if ( name_ != top_module_name_ )
+    {
+      if ( is_arithmetic_module( name_ ) )
+      {
+        auto& ports = arithmetic_ports_[name_].outputs;
+        ports.insert( ports.end(), names.begin(), names.end() );
+      }
       return;
+    }
 
     for ( const auto& name : names )
     {
@@ -375,33 +396,6 @@ public:
       return true;
     };
 
-    const auto num_params_equals = [&]( uint32_t expected_count ) {
-      if ( params.size() != expected_count )
-      {
-        fmt::print( stderr, "[e] {} module expects {} parameters\n", module_name, expected_count );
-        return false;
-      }
-      return true;
-    };
-
-    const auto register_exists = [&]( std::string const& name ) {
-      if ( registers_.find( name ) == registers_.end() )
-      {
-        fmt::print( stderr, "[e] register {} does not exist\n", name );
-        return false;
-      }
-      return true;
-    };
-
-    const auto register_has_size = [&]( std::string const& name, uint32_t size ) {
-      if ( !register_exists( name ) || registers_[name].size() != size )
-      {
-        fmt::print( stderr, "[e] register {} must have size {}\n", name, size );
-        return false;
-      }
-      return true;
-    };
-
     const auto add_register = [&]( std::string const& name, std::vector<signal<Ntk>> const& fs ) {
       for ( auto i = 0u; i < fs.size(); ++i )
       {
@@ -410,44 +404,55 @@ public:
       registers_[name] = fs;
     };
 
-    if ( module_name == "ripple_carry_adder" )
+    if ( is_arithmetic_module( module_name ) )
     {
-      if ( !num_args_equals( 3u ) )
-        return;
-      if ( !num_params_equals( 1u ) )
-        return;
-      const auto bitwidth = static_cast<uint32_t>( parse_small_value( params[0u] ) );
-      if ( !register_has_size( args[0].second, bitwidth ) )
-        return;
-      if ( !register_has_size( args[1].second, bitwidth ) )
-        return;
+      const auto declared = arithmetic_ports_.find( module_name );
+      if ( declared == arithmetic_ports_.end() || declared->second.inputs.size() != 2u || declared->second.outputs.size() != 1u || args.size() != 3u )
+        throw std::invalid_argument( fmt::format( "{} expects two input ports and one output port", module_name ) );
 
-      auto a_copy = registers_[args[0].second];
-      const auto& b = registers_[args[1].second];
-      auto carry = ntk_.get_constant( false );
-      carry_ripple_adder_inplace( ntk_, a_copy, b, carry );
-      a_copy.push_back( carry );
-      add_register( args[2].second, a_copy );
-    }
-    else if ( module_name == "montgomery_multiplier" )
-    {
-      if ( !num_args_equals( 3u ) )
-        return;
-      if ( !num_params_equals( 3u ) )
-        return;
-      const auto bitwidth = static_cast<uint32_t>( parse_small_value( params[0u] ) );
-      if ( !register_has_size( args[0].second, bitwidth ) )
-        return;
-      if ( !register_has_size( args[1].second, bitwidth ) )
-        return;
+      const std::array<std::string_view, 3> ports{ declared->second.inputs[0], declared->second.inputs[1], declared->second.outputs[0] };
+      std::array<std::string const*, 3> actual{};
+      for ( auto const& arg : args )
+      {
+        const auto pin = std::string_view( arg.first );
+        const auto it = pin.empty() || pin.front() != '.' ? ports.end() : std::find( ports.begin(), ports.end(), pin.substr( 1 ) );
+        if ( it == ports.end() || actual[it - ports.begin()] )
+          throw std::invalid_argument( fmt::format( "invalid port {} on {}", arg.first, module_name ) );
+        actual[it - ports.begin()] = &arg.second;
+      }
 
-      auto N = parse_value( params[1u] );
-      auto NN = parse_value( params[2u] );
+      const bool is_adder = module_name == "ripple_carry_adder";
+      const auto expected_params = is_adder ? 1u : 3u;
+      if ( params.size() != expected_params )
+        throw std::invalid_argument( fmt::format( "{} expects {} parameters", module_name, expected_params ) );
+      const auto bitwidth = parse_small_value( params[0] );
+      if ( bitwidth == 0u || bitwidth >= std::numeric_limits<uint32_t>::max() )
+        throw std::invalid_argument( fmt::format( "invalid register width on {}", module_name ) );
 
-      N.resize( bitwidth );
-      NN.resize( bitwidth );
-
-      add_register( args[2].second, montgomery_multiplication( ntk_, registers_[args[0].second], registers_[args[1].second], N, NN ) );
+      const auto operand = [&]( const std::string& name ) -> const std::vector<signal<Ntk>>& {
+        const auto it = registers_.find( name );
+        if ( it == registers_.end() || it->second.size() != bitwidth )
+          throw std::invalid_argument( fmt::format( "register {} must have width {}", name, bitwidth ) );
+        return it->second;
+      };
+      const auto& a = operand( *actual[0] );
+      const auto& b = operand( *actual[1] );
+      if ( is_adder )
+      {
+        auto a_copy = a;
+        auto carry = ntk_.get_constant( false );
+        carry_ripple_adder_inplace( ntk_, a_copy, b, carry );
+        a_copy.push_back( carry );
+        add_register( *actual[2], a_copy );
+      }
+      else
+      {
+        auto N = parse_value( params[1], bitwidth );
+        auto NN = parse_value( params[2], bitwidth );
+        N.resize( bitwidth );
+        NN.resize( bitwidth );
+        add_register( *actual[2], montgomery_multiplication( ntk_, a, b, N, NN ) );
+      }
     }
     else if ( module_name == "buffer" || module_name == "inverter" )
     {
@@ -573,33 +578,41 @@ public:
   }
 
 private:
-  std::vector<bool> parse_value( const std::string& value ) const
+  /*! \brief Recognize the modules implemented by the arithmetic generators. */
+  static bool is_arithmetic_module( std::string_view name )
+  {
+    return name == "ripple_carry_adder" || name == "montgomery_multiplier";
+  }
+
+  std::vector<bool> parse_value( const std::string& value, uint64_t max_width ) const
   {
     std::smatch match;
 
-    if ( std::all_of( value.begin(), value.end(), isdigit ) )
+    if ( !value.empty() && std::all_of( value.begin(), value.end(), []( char c ) { return c >= '0' && c <= '9'; } ) )
     {
-      std::vector<bool> res( 64u );
-      bool_vector_from_dec( res, static_cast<uint64_t>( std::stoul( value ) ) );
+      std::vector<bool> res( std::min<uint64_t>( 64u, max_width ) );
+      bool_vector_from_dec( res, std::stoull( value ) );
       return res;
     }
     else if ( std::regex_match( value, match, hex_string ) )
     {
-      std::vector<bool> res( static_cast<uint64_t>( std::stoul( match.str( 1 ) ) ) );
+      const auto width = std::stoull( match.str( 1 ) );
+      if ( width == 0u )
+        throw std::invalid_argument( "a Verilog literal must have positive width" );
+      std::vector<bool> res( std::min<uint64_t>( width, max_width ) );
       bool_vector_from_hex( res, match.str( 2 ) );
       return res;
     }
-    else
-    {
-      fmt::print( stderr, "[e] cannot parse number '{}'\n", value );
-    }
-    assert( false );
-    return {};
+    throw std::invalid_argument( fmt::format( "cannot parse Verilog number '{}'", value ) );
   }
 
   uint64_t parse_small_value( const std::string& value ) const
   {
-    return bool_vector_to_long( parse_value( value ) );
+    const auto bits = parse_value( value, 64u );
+    uint64_t result = 0u;
+    for ( auto it = bits.rbegin(); it != bits.rend(); ++it )
+      result = ( result << 1 ) | *it;
+    return result;
   }
 
   uint32_t parse_size( const std::string& size ) const
@@ -629,6 +642,9 @@ private:
   mutable std::string name_;
   mutable std::vector<std::pair<std::string, uint32_t>> input_names_;
   mutable std::vector<std::pair<std::string, uint32_t>> output_names_;
+
+  /*! \brief Formal ports of arithmetic modules declared in the input. */
+  mutable std::map<std::string, lorina::verilog_parser::module_info> arithmetic_ports_;
 
   std::regex hex_string{ "(\\d+)'h([0-9a-fA-F]+)" };
 };

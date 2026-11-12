@@ -149,13 +149,14 @@ TEST_CASE( "read a VERILOG file with instances", "[verilog_reader]" )
 
   std::string file{
       "module ripple_carry_adder( x1, x2, y );\n"
-      "  input x1, x2;\n"
+      "  input x1;\n"
+      "  input x2;\n"
       "  output y;\n"
       "endmodule\n"
       "module top( a, b, c );\n"
       "  input [7:0] a, b ;\n"
       "  output [8:0] c;\n"
-      "  ripple_carry_adder #(8) add1(.x1(a), .x2(b), .y(c));\n"
+      "  ripple_carry_adder #(8) add1(.y(c), .x2(b), .x1(a));\n"
       "endmodule\n" };
 
   std::istringstream in( file );
@@ -167,6 +168,22 @@ TEST_CASE( "read a VERILOG file with instances", "[verilog_reader]" )
   CHECK( mig.num_pis() == 16 );
   CHECK( mig.num_pos() == 9 );
   CHECK( mig.num_gates() == 32 );
+}
+
+TEST_CASE( "reject a Verilog arithmetic instance with mismatched operand widths", "[verilog_reader]" )
+{
+  mig_network mig;
+  std::istringstream in( "module ripple_carry_adder(x1, x2, y);\n"
+                         "  input x1, x2;\n"
+                         "  output y;\n"
+                         "endmodule\n"
+                         "module top(a, b, c);\n"
+                         "  input [1:0] a;\n"
+                         "  input [2:0] b;\n"
+                         "  output [2:0] c;\n"
+                         "  ripple_carry_adder #(2) add1(.x1(a), .x2(b), .y(c));\n"
+                         "endmodule\n" );
+  CHECK_THROWS_AS( lorina::read_verilog( in, verilog_reader( mig ) ), std::invalid_argument );
 }
 
 TEST_CASE( "read a VERILOG file to create large Montgomery multiplier", "[verilog_reader]" )
@@ -181,7 +198,7 @@ TEST_CASE( "read a VERILOG file to create large Montgomery multiplier", "[verilo
       "module top( a, b, c );\n"
       "  input [383:0] a, b;\n"
       "  output [383:0] c;\n"
-      "  montgomery_multiplier #(384, 384'hfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffeffffffff0000000000000000ffffffff, 384'h14000000140000000c00000002fffffffcfffffffafffffffbfffffffe00000000000000010000000100000001) mult(.x1(a), .x2(b), .y(c));\n"
+      "  montgomery_multiplier #(384, 512'hfffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffeffffffff0000000000000000ffffffff, 384'h14000000140000000c00000002fffffffcfffffffafffffffbfffffffe00000000000000010000000100000001) mult(.x1(a), .x2(b), .y(c));\n"
       "endmodule\n" };
 
   std::istringstream in( file );

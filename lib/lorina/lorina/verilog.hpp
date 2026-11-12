@@ -1200,7 +1200,8 @@ public:
 
     /* callback */
     reader.on_inputs( inputs, size );
-    modules[module_name].inputs = inputs;
+    auto& formal_inputs = modules[module_name].inputs;
+    formal_inputs.insert( formal_inputs.end(), inputs.begin(), inputs.end() );
 
     for ( const auto& i : inputs )
     {
@@ -1265,7 +1266,8 @@ public:
 
     /* callback */
     reader.on_outputs( outputs, size );
-    modules[module_name].outputs = outputs;
+    auto& formal_outputs = modules[module_name].outputs;
+    formal_outputs.insert( formal_outputs.end(), outputs.begin(), outputs.end() );
 
     return true;
   }
