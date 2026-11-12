@@ -38,6 +38,7 @@
 #include "detail/utils.hpp"
 #include <iostream>
 #include <optional>
+#include <regex>
 
 namespace lorina
 {
@@ -272,6 +273,14 @@ public:
   mutable bool first_output = true; /*!< Predicate that is true until the first output was parsed */
   std::ostream& _os; /*!< Output stream */
 }; /* blif_pretty_printer */
+
+namespace blif_regex
+{
+inline const std::regex model( R"(.model\s+(.*))" );
+inline const std::regex names( R"(.names\s+(.*))" );
+inline const std::regex line_of_truthtable( R"(([01\-]*)\s*([01\-]))" );
+inline const std::regex end( R"(.end)" );
+} // namespace blif_regex
 
 /*! \brief Reader function for the BLIF format.
  *

@@ -1153,6 +1153,7 @@ public:
       return false;
 
     /* callback */
+    modules[module_name] = {};
     reader.on_module_header( module_name, inouts );
 
     return true;

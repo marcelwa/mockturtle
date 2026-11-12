@@ -68,7 +68,8 @@ namespace mockturtle
  * - `create_xor`
  * - `create_maj`
  *
- * Invalid arithmetic module ports, parameters, or operands throw `std::invalid_argument`.
+ * Unsupported constructs, invalid arithmetic arguments, and undriven outputs throw `std::invalid_argument`.
+ * Numeric literals outside the 64-bit unsigned range throw `std::out_of_range`.
  *
    \verbatim embed:rst
 
@@ -482,6 +483,10 @@ public:
         if ( module_name == "inverter" )
           ntk_.invert( ntk_.get_node( signals_[lhs] ) );
       }
+      else
+      {
+        throw std::invalid_argument( fmt::format( "network does not support module {}", module_name ) );
+      }
     }
     else if ( module_name == "crossing" )
     {
@@ -524,10 +529,14 @@ public:
           signals_[fo2] = p.second;
         }
       }
+      else
+      {
+        throw std::invalid_argument( fmt::format( "network does not support module {}", module_name ) );
+      }
     }
     else
     {
-      fmt::print( stderr, "[e] unknown module name {}\n", module_name );
+      throw std::invalid_argument( fmt::format( "unsupported module {}", module_name ) );
     }
   }
 
@@ -538,7 +547,10 @@ public:
 
     for ( auto const& o : outputs_ )
     {
-      ntk_.create_po( signals_[o] );
+      const auto it = signals_.find( o );
+      if ( it == signals_.end() )
+        throw std::invalid_argument( fmt::format( "undriven Verilog output {}", o ) );
+      ntk_.create_po( it->second );
     }
 
     if constexpr ( has_set_output_name_v<Ntk> )
@@ -624,11 +636,12 @@ private:
 
     if ( auto const l = size.size(); l > 2 && size[l - 2] == ':' && size[l - 1] == '0' )
     {
-      return static_cast<uint32_t>( parse_small_value( size.substr( 0u, l - 2 ) ) + 1u );
+      const auto high = parse_small_value( size.substr( 0u, l - 2 ) );
+      if ( high < std::numeric_limits<uint32_t>::max() )
+        return static_cast<uint32_t>( high + 1u );
     }
 
-    assert( false );
-    return 0u;
+    throw std::invalid_argument( fmt::format( "unsupported Verilog port range [{}]", size ) );
   }
 
 private:
