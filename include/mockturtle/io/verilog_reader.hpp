@@ -68,7 +68,7 @@ namespace mockturtle
  * - `create_xor`
  * - `create_maj`
  *
- * Unsupported constructs, invalid arithmetic arguments, and undriven outputs throw `std::invalid_argument`.
+ * Unsupported constructs, invalid arithmetic arguments, undefined operands, and undriven outputs throw `std::invalid_argument`.
  * Numeric literals outside the 64-bit unsigned range throw `std::out_of_range`.
  *
    \verbatim embed:rst
@@ -198,10 +198,7 @@ public:
     if ( name_ != top_module_name_ )
       return;
 
-    if ( signals_.find( rhs.first ) == signals_.end() )
-      fmt::print( stderr, "[w] undefined signal {} assigned 0\n", rhs.first );
-
-    auto r = signals_[rhs.first];
+    auto r = read_signal( rhs.first );
     signals_[lhs] = rhs.second ? ntk_.create_not( r ) : r;
   }
 
@@ -210,13 +207,8 @@ public:
     if ( name_ != top_module_name_ )
       return;
 
-    if ( signals_.find( op1.first ) == signals_.end() )
-      fmt::print( stderr, "[w] undefined signal {} assigned 0\n", op1.first );
-    if ( signals_.find( op2.first ) == signals_.end() )
-      fmt::print( stderr, "[w] undefined signal {} assigned 0\n", op2.first );
-
-    auto a = signals_[op1.first];
-    auto b = signals_[op2.first];
+    auto a = read_signal( op1.first );
+    auto b = read_signal( op2.first );
     signals_[lhs] = ntk_.create_nand( op1.second ? ntk_.create_not( a ) : a, op2.second ? ntk_.create_not( b ) : b );
   }
 
@@ -225,13 +217,8 @@ public:
     if ( name_ != top_module_name_ )
       return;
 
-    if ( signals_.find( op1.first ) == signals_.end() )
-      fmt::print( stderr, "[w] undefined signal {} assigned 0\n", op1.first );
-    if ( signals_.find( op2.first ) == signals_.end() )
-      fmt::print( stderr, "[w] undefined signal {} assigned 0\n", op2.first );
-
-    auto a = signals_[op1.first];
-    auto b = signals_[op2.first];
+    auto a = read_signal( op1.first );
+    auto b = read_signal( op2.first );
     if constexpr ( is_crossed_network_type_v<Ntk> )
     {
       if ( !op1.second && !op2.second )
@@ -254,13 +241,8 @@ public:
     if ( name_ != top_module_name_ )
       return;
 
-    if ( signals_.find( op1.first ) == signals_.end() )
-      fmt::print( stderr, "[w] undefined signal {} assigned 0\n", op1.first );
-    if ( signals_.find( op2.first ) == signals_.end() )
-      fmt::print( stderr, "[w] undefined signal {} assigned 0\n", op2.first );
-
-    auto a = signals_[op1.first];
-    auto b = signals_[op2.first];
+    auto a = read_signal( op1.first );
+    auto b = read_signal( op2.first );
     if constexpr ( is_crossed_network_type_v<Ntk> )
     {
       if ( !op1.second && !op2.second )
@@ -283,13 +265,8 @@ public:
     if ( name_ != top_module_name_ )
       return;
 
-    if ( signals_.find( op1.first ) == signals_.end() )
-      fmt::print( stderr, "[w] undefined signal {} assigned 0\n", op1.first );
-    if ( signals_.find( op2.first ) == signals_.end() )
-      fmt::print( stderr, "[w] undefined signal {} assigned 0\n", op2.first );
-
-    auto a = signals_[op1.first];
-    auto b = signals_[op2.first];
+    auto a = read_signal( op1.first );
+    auto b = read_signal( op2.first );
     if constexpr ( is_crossed_network_type_v<Ntk> )
     {
       if ( !op1.second == !op2.second )
@@ -313,16 +290,9 @@ public:
       assert( false && "3-input gates in crossed_network are not supported (to be implemented)" );
     }
 
-    if ( signals_.find( op1.first ) == signals_.end() )
-      fmt::print( stderr, "[w] undefined signal {} assigned 0\n", op1.first );
-    if ( signals_.find( op2.first ) == signals_.end() )
-      fmt::print( stderr, "[w] undefined signal {} assigned 0\n", op2.first );
-    if ( signals_.find( op3.first ) == signals_.end() )
-      fmt::print( stderr, "[w] undefined signal {} assigned 0\n", op3.first );
-
-    auto a = signals_[op1.first];
-    auto b = signals_[op2.first];
-    auto c = signals_[op3.first];
+    auto a = read_signal( op1.first );
+    auto b = read_signal( op2.first );
+    auto c = read_signal( op3.first );
 
     if constexpr ( has_create_xor3_v<Ntk> )
     {
@@ -344,16 +314,9 @@ public:
       assert( false && "3-input gates in crossed_network are not supported (to be implemented)" );
     }
 
-    if ( signals_.find( op1.first ) == signals_.end() )
-      fmt::print( stderr, "[w] undefined signal {} assigned 0\n", op1.first );
-    if ( signals_.find( op2.first ) == signals_.end() )
-      fmt::print( stderr, "[w] undefined signal {} assigned 0\n", op2.first );
-    if ( signals_.find( op3.first ) == signals_.end() )
-      fmt::print( stderr, "[w] undefined signal {} assigned 0\n", op3.first );
-
-    auto a = signals_[op1.first];
-    auto b = signals_[op2.first];
-    auto c = signals_[op3.first];
+    auto a = read_signal( op1.first );
+    auto b = read_signal( op2.first );
+    auto c = read_signal( op3.first );
     signals_[lhs] = ntk_.create_maj( op1.second ? ntk_.create_not( a ) : a, op2.second ? ntk_.create_not( b ) : b, op3.second ? ntk_.create_not( c ) : c );
   }
 
@@ -367,16 +330,9 @@ public:
       assert( false && "3-input gates in crossed_network are not supported (to be implemented)" );
     }
 
-    if ( signals_.find( op1.first ) == signals_.end() )
-      fmt::print( stderr, "[w] undefined signal {} assigned 0\n", op1.first );
-    if ( signals_.find( op2.first ) == signals_.end() )
-      fmt::print( stderr, "[w] undefined signal {} assigned 0\n", op2.first );
-    if ( signals_.find( op3.first ) == signals_.end() )
-      fmt::print( stderr, "[w] undefined signal {} assigned 0\n", op3.first );
-
-    auto a = signals_[op1.first];
-    auto b = signals_[op2.first];
-    auto c = signals_[op3.first];
+    auto a = read_signal( op1.first );
+    auto b = read_signal( op2.first );
+    auto c = read_signal( op3.first );
     signals_[lhs] = ntk_.create_ite( op1.second ? ntk_.create_not( a ) : a, op2.second ? ntk_.create_not( b ) : b, op3.second ? ntk_.create_not( c ) : c );
   }
 
@@ -468,12 +424,7 @@ public:
         for ( auto const& arg : args )
         {
           if ( arg.first == ".i" )
-          {
-            if ( signals_.find( arg.second ) == signals_.end() )
-              fmt::print( stderr, "[w] undefined signal {} assigned 0\n", arg.second );
-            else
-              fi = signals_[arg.second];
-          }
+            fi = read_signal( arg.second );
           else if ( arg.first == ".o" )
             lhs = arg.second;
           else
@@ -501,19 +452,9 @@ public:
         for ( auto const& arg : args )
         {
           if ( arg.first == ".i1" )
-          {
-            if ( signals_.find( arg.second ) == signals_.end() )
-              fmt::print( stderr, "[w] undefined signal {} assigned 0\n", arg.second );
-            else
-              fi1 = signals_[arg.second];
-          }
+            fi1 = read_signal( arg.second );
           else if ( arg.first == ".i2" )
-          {
-            if ( signals_.find( arg.second ) == signals_.end() )
-              fmt::print( stderr, "[w] undefined signal {} assigned 0\n", arg.second );
-            else
-              fi2 = signals_[arg.second];
-          }
+            fi2 = read_signal( arg.second );
           else if ( arg.first == ".o1" )
             fo1 = arg.second;
           else if ( arg.first == ".o2" )
@@ -590,6 +531,15 @@ public:
   }
 
 private:
+  /*! \brief Return the signal for a defined operand. */
+  signal<Ntk> read_signal( const std::string& name ) const
+  {
+    const auto it = signals_.find( name );
+    if ( it == signals_.end() )
+      throw std::invalid_argument( fmt::format( "undefined Verilog signal {}", name ) );
+    return it->second;
+  }
+
   /*! \brief Recognize the modules implemented by the arithmetic generators. */
   static bool is_arithmetic_module( std::string_view name )
   {

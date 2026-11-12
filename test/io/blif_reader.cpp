@@ -84,6 +84,13 @@ TEST_CASE( "read BLIF whitespace, comments, and continued declarations", "[blif_
   CHECK( kitty::to_hex( tables[1] ) == "00" );
 }
 
+TEST_CASE( "reject BLIF cover rows with extra tokens or mixed polarity", "[blif_reader]" )
+{
+  const auto* const rows = GENERATE( "1 1 trailing\r\n", "0 1\r\n1 0\r\n" );
+  std::istringstream in( std::string( ".model top\r\n.inputs a\r\n.outputs y\r\n.names a y\r\n" ) + rows + ".end\r\n" );
+  CHECK( lorina::read_blif( in, lorina::blif_reader{} ) == lorina::return_code::parse_error );
+}
+
 TEST_CASE( "read a sequential BLIF file with 5 parameter latches that is not in topological order", "[blif_reader]" )
 {
   sequential<klut_network> klut;

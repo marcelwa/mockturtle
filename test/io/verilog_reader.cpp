@@ -221,7 +221,7 @@ TEST_CASE( "read a VERILOG file to create large Montgomery multiplier", "[verilo
 
 TEST_CASE( "reject Verilog outputs that the network cannot represent", "[verilog_reader]" )
 {
-  const auto* const driver = GENERATE( "", "helper h(.a(a), .y(y));" );
+  const auto* const driver = GENERATE( "", "helper h(.a(a), .y(y));", "assign z = y;" );
   mig_network mig;
   std::istringstream in( fmt::format( "module helper(a, y); input a; output y; assign y = a; endmodule\n"
                                      "module top(a, y); input a; output y; {} endmodule\n", driver ) );
