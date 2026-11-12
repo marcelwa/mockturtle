@@ -64,6 +64,33 @@ TEST_CASE( "read a combinational BLIF file into KLUT network", "[blif_reader]" )
   } );
 }
 
+TEST_CASE( "read BLIF whitespace, comments, and continued declarations", "[blif_reader]" )
+{
+  klut_network klut;
+  std::istringstream in( ".model top\n"
+                         ".inputs a\\\n"
+                         "# input list continues\n"
+                         "b\tc # another input\n"
+                         ".outputs y zero\n"
+                         ".names a b y\n"
+                         "11 1 # AND\n"
+                         ".names c zero\n"
+                         ".end" );
+  REQUIRE( lorina::read_blif( in, blif_reader( klut ) ) == lorina::return_code::success );
+  CHECK( klut.num_pis() == 3u );
+  REQUIRE( klut.num_pos() == 2u );
+  const auto tables = simulate<kitty::dynamic_truth_table>( klut, default_simulator<kitty::dynamic_truth_table>( 3u ) );
+  CHECK( kitty::to_hex( tables[0] ) == "88" );
+  CHECK( kitty::to_hex( tables[1] ) == "00" );
+}
+
+TEST_CASE( "reject BLIF cover rows with extra tokens or mixed polarity", "[blif_reader]" )
+{
+  const auto* const rows = GENERATE( "1 1 trailing\r\n", "0 1\r\n1 0\r\n" );
+  std::istringstream in( std::string( ".model top\r\n.inputs a\r\n.outputs y\r\n.names a y\r\n" ) + rows + ".end\r\n" );
+  CHECK( lorina::read_blif( in, lorina::blif_reader{} ) == lorina::return_code::parse_error );
+}
+
 TEST_CASE( "read a sequential BLIF file with 5 parameter latches that is not in topological order", "[blif_reader]" )
 {
   sequential<klut_network> klut;
