@@ -21,7 +21,7 @@ jobs:
       # report every job, so a single failure does not mask the state of the rest
       fail-fast: false
       matrix:
-        os: [ macos-14, macos-15 ]
+        os: [ macos-15, macos-26 ]
         compiler: [ clang++ ]
 
     name: ${{matrix.os}} with ${{matrix.compiler}}
