@@ -45,6 +45,7 @@
 #include <limits>
 #include <regex>
 #include <string_view>
+#include <system_error>
 
 namespace lorina
 {
@@ -739,6 +740,9 @@ inline const std::regex fairness( R"(^f(\d+) (.*)$)" );
  *
  * Reads binary AIGER format from a stream and invokes a callback
  * method for each parsed primitive and each detected parse error.
+ * Checks header counts, literal and symbol bounds, latch resets, and gate deltas.
+ * Callbacks may have already received a prefix of the input on failure.
+ * Header counts describe the circuit size and can be large even for short inputs.
  *
  * \param in Input stream
  * \param reader An AIGER reader with callback methods invoked for parsed primitives

@@ -19,10 +19,20 @@ TEST_CASE( "Binary AIGER rejects invalid records", "[aiger_reader]" )
 {
   lorina::aiger_reader reader;
   const auto* file = GENERATE( "aag 1 1 0 0 0\n2\n", "aig 2 1 0 0 0\n", "aig 2 1 1 0 0\n2 2\n",
-                              "aig 1 1 0 1 0\n2 extra\n", "aig 1 1 0 0 0 0 1\n4\n" );
+                              "aig 1 1 0 1 0\n2 extra\n", "aig 1 1 0 0 0 0 1\n4\n",
+                              "aig 1 1 0 0 0 0 0 1\n1\n" );
   CAPTURE( file );
   std::istringstream in( file );
   CHECK( lorina::read_aiger( in, reader ) == lorina::return_code::parse_error );
+}
+
+TEST_CASE( "Read an uninitialized latch in binary AIGER", "[aiger_reader]" )
+{
+  sequential<aig_network> aig;
+  std::istringstream in( "aig 2 1 1 0 0\n2 4\n" );
+  REQUIRE( lorina::read_aiger( in, aiger_reader( aig ) ) == lorina::return_code::success );
+  REQUIRE( aig.num_registers() == 1u );
+  CHECK( aig.register_at( 0 ).init == register_init::dont_care );
 }
 
 TEST_CASE( "Read binary AIGER properties and names from a stream", "[aiger_reader]" )
