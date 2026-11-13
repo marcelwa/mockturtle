@@ -46,6 +46,7 @@
 #include <lorina/blif.hpp>
 
 #include <map>
+#include <stdexcept>
 #include <string>
 #include <vector>
 
@@ -59,6 +60,8 @@ namespace mockturtle
  * - `create_po`
  * - `create_node` or `create_cover_node`
  * - `get_constant`
+ *
+ * The destination may contain a partial network if parsing fails.
  *
    \verbatim embed:rst
 
@@ -89,17 +92,29 @@ public:
 
   ~blif_reader()
   {
+    uint32_t output_index = 0u;
     for ( auto const& o : outputs )
     {
-      ntk_.create_po( signals[o] );
+      const auto signal = signals.find( o );
+      if ( signal == signals.end() )
+        return;
+      if constexpr ( has_set_output_name_v<Ntk> )
+        ntk_.set_output_name( output_index, o );
+      ntk_.create_po( signal->second );
+      ++output_index;
     }
 
     if constexpr ( has_create_ri_v<Ntk> )
     {
       for ( auto const& latch : latches )
       {
-        auto signal = signals[latch];
-        ntk_.create_ri( signal );
+        const auto signal = signals.find( latch );
+        if ( signal == signals.end() )
+          return;
+        if constexpr ( has_set_output_name_v<Ntk> )
+          ntk_.set_output_name( output_index, latch );
+        ntk_.create_ri( signal->second );
+        ++output_index;
       }
     }
   }
@@ -125,16 +140,12 @@ public:
 
   virtual void on_output( const std::string& name ) const override
   {
-    if constexpr ( has_set_output_name_v<Ntk> )
-    {
-      ntk_.set_output_name( outputs.size(), name );
-    }
     outputs.emplace_back( name );
   }
 
   virtual void on_latch( const std::string& input, const std::string& output, const std::optional<latch_type>& l_type, const std::optional<std::string>& control, const std::optional<latch_init_value>& reset ) const override
   {
-    if constexpr ( has_create_ro_v<Ntk> )
+    if constexpr ( has_create_ro_v<Ntk> && has_create_ri_v<Ntk> )
     {
       std::string type = "re";
       if ( l_type )
@@ -209,13 +220,14 @@ public:
       signals[output] = ntk_.create_ro();
       ntk_.set_register( latches.size(), reg );
 
-      if constexpr ( has_set_name_v<Ntk> && has_set_output_name_v<Ntk> )
-      {
+      if constexpr ( has_set_name_v<Ntk> )
         ntk_.set_name( signals[output], output );
-        ntk_.set_output_name( outputs.size() + latches.size(), input );
-      }
 
       latches.emplace_back( input );
+    }
+    else
+    {
+      throw std::invalid_argument( "BLIF latches require a network with register support" );
     }
   }
 
@@ -226,6 +238,9 @@ public:
       signals[output] = ntk_.get_constant( false );
       return;
     }
+
+    if ( inputs.size() > 32u )
+      throw std::invalid_argument( "BLIF covers support at most 32 inputs" );
 
     if ( inputs.empty() )
     {
