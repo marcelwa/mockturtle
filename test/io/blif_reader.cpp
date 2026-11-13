@@ -56,6 +56,13 @@ TEST_CASE( "Reject a BLIF latch in a combinational network", "[blif_reader]" )
   CHECK_THROWS_AS( lorina::read_blif_model( in, blif_reader( klut ) ), std::invalid_argument );
 }
 
+TEST_CASE( "BLIF reports undriven outputs in the whole-stream reader", "[blif_reader]" )
+{
+  klut_network klut;
+  std::istringstream in( ".model top\n.outputs missing\n.end\n" );
+  CHECK( lorina::read_blif( in, blif_reader( klut ) ) == lorina::return_code::parse_error );
+}
+
 TEST_CASE( "read a combinational BLIF file into KLUT network", "[blif_reader]" )
 {
   klut_network klut;

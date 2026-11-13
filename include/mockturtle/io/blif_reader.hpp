@@ -61,7 +61,10 @@ namespace mockturtle
  * - `create_node` or `create_cover_node`
  * - `get_constant`
  *
- * The destination may contain a partial network if parsing fails.
+ * Outputs and register inputs are created when the reader is destroyed.
+ * Discard the destination after a failed read because it can be incomplete.
+ * Latches without register support and nonempty covers wider than 32 inputs
+ * throw std::invalid_argument. Truth-table storage grows exponentially with fan-in.
  *
    \verbatim embed:rst
 

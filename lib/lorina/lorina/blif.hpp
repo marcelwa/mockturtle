@@ -408,7 +408,7 @@ namespace detail
         }
         const auto output = args.back();
         args.pop_back();
-        const auto unique_driver = !first_model || drivers.insert( output ).second;
+        const auto unique_driver = drivers.insert( output ).second || !first_model;
         if ( !unique_driver )
           report_bad_line( line );
 
@@ -468,7 +468,7 @@ namespace detail
           auto const s = detail::trim_copy( input );
           if ( s.empty() )
             continue;
-          if ( first_model && !drivers.insert( s ).second )
+          if ( !drivers.insert( s ).second && first_model )
           {
             report_bad_line( line );
             continue;
@@ -489,13 +489,12 @@ namespace detail
         {
           std::string const& input = latch_elements.at( 0 );
           std::string const& output = latch_elements.at( 1 );
-          if ( first_model && !drivers.insert( output ).second )
+          if ( !drivers.insert( output ).second && first_model )
           {
             report_bad_line( line );
             continue;
           }
-          if ( first_model )
-            sinks.push_back( input );
+          sinks.push_back( input );
           std::optional<blif_reader::latch_init_value> init_value;
           std::optional<blif_reader::latch_type> type;
           std::optional<std::string> control;
@@ -538,8 +537,7 @@ namespace detail
         {
           if ( !output.empty() )
           {
-            if ( first_model )
-              sinks.push_back( output );
+            sinks.push_back( output );
             reader.on_output( output );
           }
         }
@@ -588,7 +586,12 @@ namespace detail
 
 } // namespace detail
 
-/*! \brief Read BLIF records from a stream. */
+/*! \brief Read BLIF records from a stream.
+ * \param in Input stream
+ * \param reader Receives parsed declarations and logic
+ * \param diag Optional diagnostic engine
+ * \return Success when all records and signal dependencies are valid
+ */
 [[nodiscard]] inline return_code read_blif( std::istream& in, const blif_reader& reader, diagnostic_engine* diag = nullptr )
 {
   return detail::read_blif_records( in, reader, diag, false );
@@ -599,6 +602,12 @@ namespace detail
  * The model ends at an explicit .end, at the next .model directive, or at EOF.
  * The reader may consume the following .model directive to detect the boundary.
  * Each signal must have one driver, including signals that feed outputs or latches.
+ * A blank or comment-only line before a directive ends a pending continuation.
+ * Hierarchical references are unsupported.
+ * \param in Input stream
+ * \param reader Receives parsed declarations and logic
+ * \param diag Optional diagnostic engine
+ * \return Success when the first model and its signal dependencies are valid
  */
 [[nodiscard]] inline return_code read_blif_model( std::istream& in, const blif_reader& reader,
                                                  diagnostic_engine* diag = nullptr )
