@@ -17,6 +17,45 @@
 
 using namespace mockturtle;
 
+TEST_CASE( "Reject a Verilog port bound that would be truncated", "[verilog_reader]" )
+{
+  mig_network mig;
+  std::istringstream in( "module top(a,y); input [1'h2:0] a; output y; assign y = a[0]; endmodule\n" );
+  CHECK_THROWS_AS( lorina::read_verilog( in, verilog_reader( mig ) ), std::invalid_argument );
+}
+
+TEST_CASE( "Validate decimal Verilog input ranges before expanding them", "[verilog_reader]" )
+{
+  const auto* range = GENERATE( "4294967296:0", "1:2:3" );
+  CAPTURE( range );
+  std::istringstream in( std::string( "module helper(a); input [" ) + range + "] a; endmodule\n" );
+  CHECK( lorina::read_verilog( in, lorina::verilog_reader{} ) == lorina::return_code::parse_error );
+}
+
+TEST_CASE( "Track whether the requested Verilog module was present", "[verilog_reader]" )
+{
+  mig_network mig;
+  std::istringstream in( "module helper(a); input [0:1] a; endmodule\n" );
+  verilog_reader reader( mig, "circuit" );
+  REQUIRE( lorina::read_verilog( in, reader ) == lorina::return_code::success );
+  CHECK_FALSE( reader.found_top() );
+
+  mig_network selected_network;
+  verilog_reader selected_reader( selected_network, "circuit" );
+  std::istringstream selected( "module circuit(a,y); input a; output y; assign y = a; endmodule\n"
+                               "module helper(a); input [0:1] a; endmodule\n" );
+  REQUIRE( lorina::read_verilog( selected, selected_reader ) == lorina::return_code::success );
+  CHECK( selected_reader.found_top() );
+}
+
+TEST_CASE( "Reject duplicate definitions of the selected Verilog module", "[verilog_reader]" )
+{
+  mig_network mig;
+  std::istringstream in( "module top(a,y); input a; output y; assign y = a; endmodule\n"
+                         "module top(b,z); input b; output z; assign z = b; endmodule\n" );
+  CHECK_THROWS_AS( lorina::read_verilog( in, verilog_reader( mig ) ), std::invalid_argument );
+}
+
 TEST_CASE( "read a VERILOG file into MIG network", "[verilog_reader]" )
 {
   mig_network mig;

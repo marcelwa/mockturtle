@@ -37,6 +37,7 @@
 
 #include <algorithm>
 #include <array>
+#include <charconv>
 #include <iostream>
 #include <limits>
 #include <map>
@@ -44,6 +45,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <system_error>
 #include <vector>
 
 #include <fmt/format.h>
@@ -107,9 +109,13 @@ public:
   void on_module_header( const std::string& module_name, const std::vector<std::string>& inouts ) const override
   {
     (void)inouts;
-    if constexpr ( has_set_network_name_v<Ntk> )
+    if ( module_name == top_module_name_ )
     {
-      ntk_.set_network_name( module_name );
+      if ( found_top_ )
+        throw std::invalid_argument( fmt::format( "duplicate Verilog module named '{}'", module_name ) );
+      found_top_ = true;
+      if constexpr ( has_set_network_name_v<Ntk> )
+        ntk_.set_network_name( module_name );
     }
 
     name_ = module_name;
@@ -520,6 +526,12 @@ public:
     return name_;
   }
 
+  /*! \brief Whether a module with the requested name was declared. */
+  [[nodiscard]] bool found_top() const
+  {
+    return found_top_;
+  }
+
   const std::vector<std::pair<std::string, uint32_t>> input_names()
   {
     return input_names_;
@@ -584,10 +596,24 @@ private:
       return 1u;
     }
 
+    const auto parse_number = []( std::string_view digits, uint64_t& value, int base = 10 ) {
+      if ( digits.empty() )
+        return false;
+      const auto* end = digits.data() + digits.size();
+      const auto [position, error] = std::from_chars( digits.data(), end, value, base );
+      return error == std::errc{} && position == end;
+    };
     if ( auto const l = size.size(); l > 2 && size[l - 2] == ':' && size[l - 1] == '0' )
     {
-      const auto high = parse_small_value( size.substr( 0u, l - 2 ) );
-      if ( high < std::numeric_limits<uint32_t>::max() )
+      const auto token = std::string_view( size ).substr( 0u, l - 2 );
+      const auto hex = token.find( "'h" );
+      uint64_t high{}, bits{};
+      const auto valid = hex == std::string_view::npos
+                             ? parse_number( token, high )
+                             : parse_number( token.substr( 0u, hex ), bits ) && bits > 0u && bits <= 64u &&
+                                   parse_number( token.substr( hex + 2u ), high, 16 ) &&
+                                   ( bits == 64u || ( high >> bits ) == 0u );
+      if ( valid && high < std::numeric_limits<uint32_t>::max() )
         return static_cast<uint32_t>( high + 1u );
     }
 
@@ -603,6 +629,7 @@ private:
   mutable std::map<std::string, std::vector<signal<Ntk>>> registers_;
   mutable std::vector<std::string> outputs_;
   mutable std::string name_;
+  mutable bool found_top_{ false };
   mutable std::vector<std::pair<std::string, uint32_t>> input_names_;
   mutable std::vector<std::pair<std::string, uint32_t>> output_names_;
 
