@@ -63,6 +63,8 @@ namespace mockturtle
  * behind the file's own primary outputs.  No logic is lost, but the sequential
  * behaviour is: the registers become free inputs.  Use a `sequential<Ntk>` to
  * read the design as the sequential network it is.
+ * Discard the destination network if parsing fails. It can contain a prefix
+ * of the file's logic and interface.
  *
    \verbatim embed:rst
 
@@ -97,9 +99,13 @@ public:
   ~aiger_reader()
   {
     uint32_t output_id{ 0 };
-    for ( auto out : outputs )
+    for ( auto const& out : outputs )
     {
       auto const lit = std::get<0>( out );
+      if ( ( lit >> 1 ) >= signals.size() )
+      {
+        return;
+      }
       auto signal = signals[lit >> 1];
       if ( lit & 1 )
       {
@@ -121,6 +127,10 @@ public:
       auto& latch = latches[i];
       auto const lit = std::get<0>( latch );
 
+      if ( ( lit >> 1 ) >= signals.size() )
+      {
+        return;
+      }
       auto signal = signals[lit >> 1];
       if ( lit & 1 )
       {
