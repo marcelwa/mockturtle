@@ -24,6 +24,18 @@ TEST_CASE( "Reject a Verilog port bound that would be truncated", "[verilog_read
   CHECK_THROWS_AS( lorina::read_verilog( in, verilog_reader( mig ) ), std::invalid_argument );
 }
 
+TEST_CASE( "Read Verilog hexadecimal port bounds with wide literal sizes", "[verilog_reader]" )
+{
+  const auto width = GENERATE( 64u, 65u );
+  CAPTURE( width );
+  mig_network mig;
+  std::istringstream in( "module top(a,y); input [" + std::to_string( width ) +
+                         "'h7:0] a; output y; assign y = 0; endmodule\n" );
+  REQUIRE( lorina::read_verilog( in, verilog_reader( mig ) ) == lorina::return_code::success );
+  CHECK( mig.num_pis() == 8u );
+  CHECK( mig.num_pos() == 1u );
+}
+
 TEST_CASE( "Validate decimal Verilog input ranges before expanding them", "[verilog_reader]" )
 {
   const auto* range = GENERATE( "4294967296:0", "1:2:3" );

@@ -1213,6 +1213,7 @@ public:
     const auto expand = std::regex_match( size, range, verilog_regex::const_size_range );
     if ( expand && ( !parse_bound( range[1], first ) || !parse_bound( range[2], last ) ) )
       return false;
+    /* Leave nondecimal expressions to the reader, but reject malformed decimal ranges. */
     if ( !expand && size.find( ':' ) != std::string::npos && size.find_first_not_of( "0123456789:" ) == std::string::npos )
       return false;
 

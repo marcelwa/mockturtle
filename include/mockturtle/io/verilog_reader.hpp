@@ -70,8 +70,12 @@ namespace mockturtle
  * - `create_xor`
  * - `create_maj`
  *
- * Unsupported constructs, invalid arithmetic arguments, undefined operands, and undriven outputs throw `std::invalid_argument`.
- * Numeric literals outside the 64-bit unsigned range throw `std::out_of_range`.
+ * The selected module supports scalar ports and [high:0] vectors with decimal or sized hexadecimal bounds.
+ * Check found_top() after a successful parse to determine whether that module was declared.
+ * Use one reader per file and discard the destination after a failed parse.
+ * Unsupported constructs, invalid port bounds, duplicate definitions of the selected module, invalid arithmetic arguments,
+ * undefined operands, and undriven outputs throw std::invalid_argument.
+ * Overflow converting a decimal arithmetic literal or hexadecimal arithmetic width throws std::out_of_range.
  *
    \verbatim embed:rst
 
@@ -610,9 +614,9 @@ private:
       uint64_t high{}, bits{};
       const auto valid = hex == std::string_view::npos
                              ? parse_number( token, high )
-                             : parse_number( token.substr( 0u, hex ), bits ) && bits > 0u && bits <= 64u &&
+                             : parse_number( token.substr( 0u, hex ), bits ) && bits > 0u &&
                                    parse_number( token.substr( hex + 2u ), high, 16 ) &&
-                                   ( bits == 64u || ( high >> bits ) == 0u );
+                                   ( bits >= 64u || ( high >> bits ) == 0u );
       if ( valid && high < std::numeric_limits<uint32_t>::max() )
         return static_cast<uint32_t>( high + 1u );
     }
