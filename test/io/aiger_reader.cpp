@@ -15,6 +15,30 @@
 
 using namespace mockturtle;
 
+TEST_CASE( "Binary AIGER rejects invalid records", "[aiger_reader]" )
+{
+  lorina::aiger_reader reader;
+  const auto* file = GENERATE( "aag 1 1 0 0 0\n2\n", "aig 2 1 0 0 0\n", "aig 2 1 1 0 0\n2 2\n",
+                              "aig 1 1 0 1 0\n2 extra\n", "aig 1 1 0 0 0 0 1\n4\n" );
+  CAPTURE( file );
+  std::istringstream in( file );
+  CHECK( lorina::read_aiger( in, reader ) == lorina::return_code::parse_error );
+}
+
+TEST_CASE( "Read binary AIGER properties and names from a stream", "[aiger_reader]" )
+{
+  names_view<aig_network> aig;
+  std::istringstream in( "aig 3 2 0 1 1 1 1 1 1\r\n"
+                         "6\r\n4\r\n2\r\n1\r\n4\r\n2\r\n"
+                         "\x02\x02i0 a\r\no0 y\r\nb0 bad\r\nc0 constraint\r\nj0 justice\r\nf0 fairness" );
+  REQUIRE( lorina::read_aiger( in, aiger_reader( aig ) ) == lorina::return_code::success );
+  CHECK( aig.num_pis() == 2u );
+  REQUIRE( aig.num_pos() == 2u );
+  CHECK( aig.num_gates() == 1u );
+  CHECK( aig.get_output_name( 0 ) == "y" );
+  CHECK( aig.get_output_name( 1 ) == "bad" );
+}
+
 TEST_CASE( "read and write names", "[aiger_reader]" )
 {
   sequential<aig_network> aig;
