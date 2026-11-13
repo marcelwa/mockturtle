@@ -19,6 +19,50 @@
 
 using namespace mockturtle;
 
+TEST_CASE( "Read BLIF with empty port lists", "[blif_reader]" )
+{
+  klut_network klut;
+  std::istringstream in( ".model empty\n.inputs\n.outputs\n.end\n" );
+  REQUIRE( lorina::read_blif( in, blif_reader( klut ) ) == lorina::return_code::success );
+  CHECK( klut.num_pis() == 0u );
+  CHECK( klut.num_pos() == 0u );
+}
+
+TEST_CASE( "Read only the first flat BLIF model", "[blif_reader]" )
+{
+  const auto* boundary = GENERATE( ".end\n.model ", ".model\f", ".model\v" );
+  klut_network klut;
+  std::istringstream in( std::string( ".model first\n.inputs a \\\n# end of inputs\n.outputs a\n" ) +
+                         boundary + "second\n.inputs b\n.outputs b\n.end\n" );
+  REQUIRE( lorina::read_blif_model( in, blif_reader( klut ) ) == lorina::return_code::success );
+  CHECK( klut.num_pis() == 1u );
+  CHECK( klut.num_pos() == 1u );
+}
+
+TEST_CASE( "Reject a BLIF model with duplicate drivers or undriven sinks", "[blif_reader]" )
+{
+  const auto* body = GENERATE( ".inputs a\n.outputs a\n.names a\n1\n", ".outputs missing\n",
+                               ".latch missing state\n.outputs state\n" );
+  CAPTURE( body );
+  sequential<klut_network> klut;
+  std::istringstream in( std::string( ".model top\n" ) + body + ".end\n" );
+  CHECK( lorina::read_blif_model( in, blif_reader( klut ) ) == lorina::return_code::parse_error );
+}
+
+TEST_CASE( "Reject a BLIF latch in a combinational network", "[blif_reader]" )
+{
+  klut_network klut;
+  std::istringstream in( ".model top\n.inputs a\n.outputs state\n.latch a state\n.end\n" );
+  CHECK_THROWS_AS( lorina::read_blif_model( in, blif_reader( klut ) ), std::invalid_argument );
+}
+
+TEST_CASE( "BLIF reports undriven outputs in the whole-stream reader", "[blif_reader]" )
+{
+  klut_network klut;
+  std::istringstream in( ".model top\n.outputs missing\n.end\n" );
+  CHECK( lorina::read_blif( in, blif_reader( klut ) ) == lorina::return_code::parse_error );
+}
+
 TEST_CASE( "read a combinational BLIF file into KLUT network", "[blif_reader]" )
 {
   klut_network klut;
